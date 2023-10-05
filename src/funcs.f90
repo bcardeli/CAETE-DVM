@@ -596,7 +596,7 @@ contains
    !=================================================================
 
    subroutine photosynthesis_rate(c_atm, temp,p0,ipar,sla_var,c4,nbio,pbio,&
-        & cleaf,cawood1,height1,max_height,f1ab,vm, amax)
+        & cleaf,cawood1,height1,max_height,f1ab,f1ab_layer,vm, amax)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -623,6 +623,7 @@ contains
       real(r_8),intent(out) :: f1ab ! Gross CO2 Assimilation Rate mol m-2 s-1
       real(r_8),intent(out) :: vm   ! PLS Vcmax mol m-2 s-1
       real(r_8),intent(out) :: amax ! light saturated PH rate
+      real(r_8),intent(out) :: f1ab_layer
 
 
 
@@ -661,7 +662,6 @@ contains
       real(r_8) :: layer_size !size of each layer in m. in each grid-cell
       integer(i_4) :: last_with_pls !last layer contains PLS
       real(r_8) :: llight
-      !real(r_8) :: f1ab_layer
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -835,6 +835,54 @@ contains
                if (height1.le.max_height.and.height1.gt.layer(n-1)%layer_height) then 
                   llight = ipar
                   aux_ipar = ipar
+
+                  if (c4 .eq. 0) then
+                     !Photo-respiration compensation point (Pa)
+                     mgama = p3/(p8*(p9**(p10*(temp-p11))))
+                     !Michaelis-Menten CO2 constant (Pa)
+                     f2 = p12*(p13**(p10*(temp-p11)))
+                     !Michaelis-Menten O2 constant (Pa)
+                     f3 = p14*(p15**(p10*(temp-p11)))
+                     !Saturation vapour pressure (hPa)
+                     es = real(tetens(temp), r_8)
+                     !Saturated mixing ratio (kg/kg)
+                     rmax = 0.622*(es/(p0-es))
+                     !Moisture deficit at leaf level (kg/kg)
+                     r = -0.315*rmax
+                     !Internal leaf CO2 partial pressure (Pa)
+                     ci = p19* (1.-(r/p20)) * ((c_atm/9.901)-mgama) + mgama
+                     !Rubisco carboxilation limited photosynthesis rate (molCO2/m2/s)
+                     jc = vm_in*((ci-mgama)/(ci+(f2*(1.+(p3/f3)))))
+                     jl = p4*(1.0-p5)*aux_ipar*((ci-mgama)/(ci+(p6*mgama)))
+                     amax = jl
+                     ! Transport limited photosynthesis rate (molCO2/m2/s) (RuBP) (re)generation
+                     je = p7*vm_in
+                     !Jp (minimum between jc and jl)
+                     b = (-1.)*(jc+jl)
+                     c = jc*jl
+                     delta = (b**2)-4.0*a*c
+                     jp1 = (-b-(sqrt(delta)))/(2.0*a)
+                     jp2 = (-b+(sqrt(delta)))/(2.0*a)
+                     jp = dmin1(jp1,jp2)
+
+                     !Leaf level gross photosynthesis (minimum between jc, jl and je)
+                     !---------------------------------------------------------------
+                     b2 = (-1.)*(jp+je)
+                     c2 = jp*je
+                     delta2 = (b2**2)-4.0*a2*c2
+                     j1 = (-b2-(sqrt(delta2)))/(2.0d0*a2)
+                     j2 = (-b2+(sqrt(delta2)))/(2.0d0*a2)
+                     f1a = dmin1(j1,j2)
+
+                     f1ab_layer = f1a
+                     if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
+
+                  endif
+
+                  !For C4 plants (represented by the grasses in the CAETÊ model)
+                  !there is no differentiation of layers.
+
+                  ! print*, 'F1-LAYER_top', f1ab_layer
                   !print*, n, 'LL TOP=', llight, 'aux_ipar', aux_ipar,'ipar', ipar
                endif
             else
@@ -842,9 +890,56 @@ contains
                if (height1.le.layer(n)%layer_height.and.height1.gt.layer(n-1)%layer_height) then
                   llight = (layer(n)%lavai/ipar)
                   aux_ipar = ipar - (ipar*llight) !limitation in % of IPAR total. 
-                  !tf1 = 2*aux_ipar
+
+                  if (c4 .eq. 0) then
+                     !Photo-respiration compensation point (Pa)
+                     mgama = p3/(p8*(p9**(p10*(temp-p11))))
+                     !Michaelis-Menten CO2 constant (Pa)
+                     f2 = p12*(p13**(p10*(temp-p11)))
+                     !Michaelis-Menten O2 constant (Pa)
+                     f3 = p14*(p15**(p10*(temp-p11)))
+                     !Saturation vapour pressure (hPa)
+                     es = real(tetens(temp), r_8)
+                     !Saturated mixing ratio (kg/kg)
+                     rmax = 0.622*(es/(p0-es))
+                     !Moisture deficit at leaf level (kg/kg)
+                     r = -0.315*rmax
+                     !Internal leaf CO2 partial pressure (Pa)
+                     ci = p19* (1.-(r/p20)) * ((c_atm/9.901)-mgama) + mgama
+                     !Rubisco carboxilation limited photosynthesis rate (molCO2/m2/s)
+                     jc = vm_in*((ci-mgama)/(ci+(f2*(1.+(p3/f3)))))
+                     jl = p4*(1.0-p5)*aux_ipar*((ci-mgama)/(ci+(p6*mgama)))
+                     amax = jl
+                     ! Transport limited photosynthesis rate (molCO2/m2/s) (RuBP) (re)generation
+                     je = p7*vm_in
+                     !Jp (minimum between jc and jl)
+                     b = (-1.)*(jc+jl)
+                     c = jc*jl
+                     delta = (b**2)-4.0*a*c
+                     jp1 = (-b-(sqrt(delta)))/(2.0*a)
+                     jp2 = (-b+(sqrt(delta)))/(2.0*a)
+                     jp = dmin1(jp1,jp2)
+
+                     !Leaf level gross photosynthesis (minimum between jc, jl and je)
+                     !---------------------------------------------------------------
+                     b2 = (-1.)*(jp+je)
+                     c2 = jp*je
+                     delta2 = (b2**2)-4.0*a2*c2
+                     j1 = (-b2-(sqrt(delta2)))/(2.0d0*a2)
+                     j2 = (-b2+(sqrt(delta2)))/(2.0d0*a2)
+                     f1a = dmin1(j1,j2)
+
+                     f1ab_layer = f1a
+                     if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
+
+                  endif
+
+                  !For C4 plants (represented by the grasses in the CAETÊ model)
+                  !there is no differentiation of layers.
+
+                  !print*, 'F1-LAYER_below', f1ab_layer
                   !print*, n, 'LL ABOVE % =', llight, 'aux_ipar', aux_ipar !, 'ipar', ipar
-                  !print*, n, 'TF1 = ', tf1
+
                endif
             endif 
          endif  
@@ -880,6 +975,8 @@ contains
          jl = p4*(1.0-p5)*aux_ipar*((ci-mgama)/(ci+(p6*mgama)))
          amax = jl
 
+         !print*, 'amax_out', amax
+
          ! Transport limited photosynthesis rate (molCO2/m2/s) (RuBP) (re)generation
          ! ---------------------------------------------------
          je = p7*vm_in
@@ -893,6 +990,8 @@ contains
          jp2 = (-b+(sqrt(delta)))/(2.0*a)
          jp = dmin1(jp1,jp2)
 
+         !print*, 'jp_out', jp
+
          !Leaf level gross photosynthesis (minimum between jc, jl and je)
          !---------------------------------------------------------------
          b2 = (-1.)*(jp+je)
@@ -905,6 +1004,8 @@ contains
 
          f1ab = f1a
          if(f1ab .lt. 0.0D0) f1ab = 0.0D0
+
+         ! print*, 'F1_OUT', f1ab
          return
       else
          !===========================-C4 PHOTOSYNTHESIS-=============================

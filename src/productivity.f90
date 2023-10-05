@@ -85,6 +85,7 @@ contains
 
     real(r_8) :: f1       !Leaf level gross photosynthesis (molCO2/m2/s)
     real(r_8) :: f1a      !auxiliar_f1
+    real(r_8) :: f1a_layer
     real(r_4) :: rc_pot, rc_aux
 
 !getting pls parameters
@@ -113,8 +114,7 @@ contains
 ! rate (molCO2/m2/s)
 
     call photosynthesis_rate(catm,temp,p0,ipar,sla1,c4_int,n2cl,&
-         & p2cl,cl1_prod,ca1_prod,height1,max_height,f1a,vm_out,jl_out)
-
+         & p2cl,cl1_prod,ca1_prod,height1,max_height,f1a,f1a_layer,vm_out,jl_out)
 
     ! VPD
     !========
