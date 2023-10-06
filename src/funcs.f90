@@ -595,8 +595,9 @@ contains
    !=================================================================
    !=================================================================
 
-   subroutine photosynthesis_rate(c_atm, temp,p0,ipar,sla_var,c4,nbio,pbio,&
-        & cleaf,cawood1,height1,max_height,f1ab,f1ab_layer,vm, amax)
+   subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
+        & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
+        & n2cw,n2cf,height1,max_height,num_layer,npp_layer,f1ab,f1ab_layer,vm, amax)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -605,7 +606,7 @@ contains
       use photo_par
       ! implicit none
       ! I
-      real(r_4),intent(in) :: temp  ! temp °C
+      real(r_4),intent(in) :: temp,ts  ! temp °C
       real(r_4),intent(in) :: p0    ! atm Pressure hPa
       real(r_4),intent(in) :: ipar  ! mol Photons m-2 s-1
       real(r_8),intent(in) :: nbio, c_atm  ! mg g-1, ppm
@@ -617,13 +618,18 @@ contains
       real(r_8),intent(in) :: height1
       real(r_8),intent(in) :: max_height
       real(r_8),intent(in) :: cawood1
-      real(r_8),intent(in) :: cleaf
+      real(r_8),intent(in) :: cleaf, cfroot
+      real(r_8),intent(in) :: beta_leaf, beta_awood, beta_froot
+      real(r_8),intent(in) :: awood
+      real(r_8),intent(in) :: n2cl,n2cw,n2cf
 
       ! O
       real(r_8),intent(out) :: f1ab ! Gross CO2 Assimilation Rate mol m-2 s-1
       real(r_8),intent(out) :: vm   ! PLS Vcmax mol m-2 s-1
       real(r_8),intent(out) :: amax ! light saturated PH rate
       real(r_8),intent(out) :: f1ab_layer
+      real(r_8),intent(out) :: npp_layer
+      integer(i_4),intent(out) :: num_layer !number of layers according to max height in each grid-cel
 
 
 
@@ -640,6 +646,7 @@ contains
       real(r_8) :: b,c,c2,b2,es,j1,j2
       real(r_8) :: delta, delta2,aux_ipar
       real(r_8) :: f1a
+      real(r_8) :: temp_p10
 
       ! new vars C4 PHOTOSYNTHESIS
       real(r_8) :: ipar1
@@ -658,10 +665,15 @@ contains
       !Internal Variables [LIGHT COMPETITION] ---------------------------------------
       integer(i_4) :: n
       real(r_8) :: index_leaf
-      integer(i_4) :: num_layer !number of layers according to max height in each grid-cel
       real(r_8) :: layer_size !size of each layer in m. in each grid-cell
       integer(i_4) :: last_with_pls !last layer contains PLS
       real(r_8) :: llight
+      real(r_8) ::gross_layer
+      real(r_8) :: rg_layer
+      real(r_8) :: rm_layer
+      real(r_8) :: ar_layer
+      real(r_8) :: c_defcit_layer
+      real(r_8) :: array_dim
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -729,12 +741,12 @@ contains
       layer_size = 0.0D0
 
       num_layer = nint(max_height/5)
-      ! print*, 'num layer is', num_layer, 'max_height=', max_height
+      ! print*, 'num layer is (funcs)', num_layer
 
       allocate(layer(1:num_layer))
 
       layer_size = max_height/num_layer !length from one layer to another
-      ! print*, 'layer_size', layer_size
+      !print*, 'layer_size', layer_size
      
       last_with_pls=num_layer
       !print*, 'LAST', last_with_pls
@@ -829,20 +841,29 @@ contains
          if (cawood1.eq.0.0D0) then
             aux_ipar = ipar
             llight = ipar
+            npp_layer = 0.0D0
          else
-            if (n.eq.num_layer) then 
+            if (n.eq.num_layer) then !highest layer
                layer(n)%layer_id = num_layer
                if (height1.le.max_height.and.height1.gt.layer(n-1)%layer_height) then 
                   llight = ipar
                   aux_ipar = ipar
 
+                  !For each layer, a photosynthetic rate (to C3 plants) is calculated 
+                  !based on the corresponding light extinction, taking into account 
+                  !the unique light conditions at each layer.
+
+                  ! ======== C4 PHOTOSYNTHESIS ======== !
+
                   if (c4 .eq. 0) then
+                     !constants for calculation
+                     temp_p10 = p10 * (temp - p11)
                      !Photo-respiration compensation point (Pa)
-                     mgama = p3/(p8*(p9**(p10*(temp-p11))))
+                     mgama = p3/(p8*(p9**temp_p10))
                      !Michaelis-Menten CO2 constant (Pa)
-                     f2 = p12*(p13**(p10*(temp-p11)))
+                     f2 = p12*(p13**temp_p10)
                      !Michaelis-Menten O2 constant (Pa)
-                     f3 = p14*(p15**(p10*(temp-p11)))
+                     f3 = p14*(p15**temp_p10)
                      !Saturation vapour pressure (hPa)
                      es = real(tetens(temp), r_8)
                      !Saturated mixing ratio (kg/kg)
@@ -857,22 +878,25 @@ contains
                      amax = jl
                      ! Transport limited photosynthesis rate (molCO2/m2/s) (RuBP) (re)generation
                      je = p7*vm_in
+
                      !Jp (minimum between jc and jl)
+                     !**Var 'a' and 'a2' are declarated in global.f90
+
                      b = (-1.)*(jc+jl)
                      c = jc*jl
                      delta = (b**2)-4.0*a*c
                      jp1 = (-b-(sqrt(delta)))/(2.0*a)
                      jp2 = (-b+(sqrt(delta)))/(2.0*a)
-                     jp = dmin1(jp1,jp2)
+                     jp = min(jp1,jp2)
 
                      !Leaf level gross photosynthesis (minimum between jc, jl and je)
-                     !---------------------------------------------------------------
+                     !--------------------------------------------------------------!
                      b2 = (-1.)*(jp+je)
                      c2 = jp*je
                      delta2 = (b2**2)-4.0*a2*c2
                      j1 = (-b2-(sqrt(delta2)))/(2.0d0*a2)
                      j2 = (-b2+(sqrt(delta2)))/(2.0d0*a2)
-                     f1a = dmin1(j1,j2)
+                     f1a = min(j1,j2)
 
                      f1ab_layer = f1a
                      if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
@@ -882,8 +906,49 @@ contains
                   !For C4 plants (represented by the grasses in the CAETÊ model)
                   !there is no differentiation of layers.
 
-                  ! print*, 'F1-LAYER_top', f1ab_layer
-                  !print*, n, 'LL TOP=', llight, 'aux_ipar', aux_ipar,'ipar', ipar
+                  !For each layer, a sequence of vital processes is executed, including:
+                  !(1) Gross Primary Production (Gross PH), (2) respiration (both growth and maintenance), 
+                  !and (3) Net Primary Productivity (NPP).
+
+                  ! ======================== (1) ==========================
+                  ! =============== GROSS PH FOR EACH LAYER ===============
+
+                  gross_layer = gross_ph(f1ab_layer,cleaf,sla_var)
+
+                  ! ======================== (2) ==========================
+                  ! ============= GROWTH & MAINTENANCE RESP ===============
+
+                  ! GROWTH RESPIRATION
+                  rg_layer = g_resp(beta_leaf,beta_awood,beta_froot,awood)
+
+                  if (rg_layer .lt. 0) then
+                     rg_layer = 0.0
+                  endif
+
+                  ! MAINTENANCE RESPIRATION
+                  rm_layer = m_resp(temp,ts,cleaf,cfroot,cawood1,&
+                  & n2cl,n2cw,n2cf,awood)
+
+                  ! AUTOTROPHIC RESPIRATION (rm + rg)
+
+                  if ((temp .ge. -10.0).and.(temp .le. 50.0)) then
+                     ar_layer = rm_layer + rg_layer
+                  else
+                     ar_layer = 0.0  !Temperature above/below respiration windown
+                  endif
+
+                  ! ======================== (3) ==========================
+                  ! ============== NET PRIMARY PROD. (NPP) ================
+
+                  npp_layer = (gross_layer - ar_layer)
+
+                  if(ar_layer .gt. gross_layer) then
+                     c_defcit_layer = ((ar_layer - gross_layer)*2.73791) ! tranform kg m-2 year-1 in  g m-2 day-1
+                     npp_layer = 0.0
+                  else
+                     c_defcit_layer = 0.0
+                  endif
+
                endif
             else
                layer(n)%layer_id = layer(n+1)%layer_id-1  
@@ -892,12 +957,14 @@ contains
                   aux_ipar = ipar - (ipar*llight) !limitation in % of IPAR total. 
 
                   if (c4 .eq. 0) then
+                     !constants for calculation
+                     temp_p10 = p10 * (temp - p11)
                      !Photo-respiration compensation point (Pa)
-                     mgama = p3/(p8*(p9**(p10*(temp-p11))))
+                     mgama = p3/(p8*(p9**temp_p10))
                      !Michaelis-Menten CO2 constant (Pa)
-                     f2 = p12*(p13**(p10*(temp-p11)))
+                     f2 = p12*(p13**temp_p10)
                      !Michaelis-Menten O2 constant (Pa)
-                     f3 = p14*(p15**(p10*(temp-p11)))
+                     f3 = p14*(p15**temp_p10)
                      !Saturation vapour pressure (hPa)
                      es = real(tetens(temp), r_8)
                      !Saturated mixing ratio (kg/kg)
@@ -912,13 +979,14 @@ contains
                      amax = jl
                      ! Transport limited photosynthesis rate (molCO2/m2/s) (RuBP) (re)generation
                      je = p7*vm_in
+
                      !Jp (minimum between jc and jl)
                      b = (-1.)*(jc+jl)
                      c = jc*jl
                      delta = (b**2)-4.0*a*c
                      jp1 = (-b-(sqrt(delta)))/(2.0*a)
                      jp2 = (-b+(sqrt(delta)))/(2.0*a)
-                     jp = dmin1(jp1,jp2)
+                     jp = min(jp1,jp2)
 
                      !Leaf level gross photosynthesis (minimum between jc, jl and je)
                      !---------------------------------------------------------------
@@ -927,7 +995,7 @@ contains
                      delta2 = (b2**2)-4.0*a2*c2
                      j1 = (-b2-(sqrt(delta2)))/(2.0d0*a2)
                      j2 = (-b2+(sqrt(delta2)))/(2.0d0*a2)
-                     f1a = dmin1(j1,j2)
+                     f1a = min(j1,j2)
 
                      f1ab_layer = f1a
                      if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
@@ -937,15 +1005,58 @@ contains
                   !For C4 plants (represented by the grasses in the CAETÊ model)
                   !there is no differentiation of layers.
 
-                  !print*, 'F1-LAYER_below', f1ab_layer
-                  !print*, n, 'LL ABOVE % =', llight, 'aux_ipar', aux_ipar !, 'ipar', ipar
+                  !For each layer, a sequence of vital processes is executed, including:
+                  !(1) Gross Primary Production (Gross PH), (2) respiration (both growth and maintenance), 
+                  !and (3) Net Primary Productivity (NPP).
+
+                  ! ======================== (1) ==========================
+                  ! =============== GROSS PH FOR EACH LAYER ===============
+
+                  gross_layer = gross_ph(f1ab_layer,cleaf,sla_var)
+
+                  ! ======================== (2) ==========================
+                  ! ============= GROWTH & MAINTENANCE RESP ===============
+
+                  ! GROWTH RESPIRATION
+                  rg_layer = g_resp(beta_leaf,beta_awood,beta_froot,awood)
+
+                  if (rg_layer .lt. 0) then
+                     rg_layer = 0.0
+                  endif
+
+                  ! MAINTENANCE RESPIRATION
+                  rm_layer = m_resp(temp,ts,cleaf,cfroot,cawood1,&
+                  & n2cl,n2cw,n2cf,awood)
+
+                  ! AUTOTROPHIC RESPIRATION (rm + rg)
+                  if ((temp .ge. -10.0).and.(temp .le. 50.0)) then
+                     ar_layer = rm_layer + rg_layer
+                  else
+                     ar_layer = 0.0               !Temperature above/below respiration windown
+                  endif
+
+                  ! ======================== (3) ==========================
+                  ! ============== NET PRIMARY PROD. (NPP) ================
+
+                  npp_layer = (gross_layer - ar_layer)
+
+                  if(ar_layer .gt. gross_layer) then
+                     c_defcit_layer = ((ar_layer - gross_layer)*2.73791) ! tranform kg m-2 year-1 in  g m-2 day-1
+                     npp_layer = 0.0
+                  else
+                     c_defcit_layer = 0.0
+                  endif
 
                endif
             endif 
          endif  
       enddo
 
-      !============================  END  ========================================================
+      !============================  END  - LIGH COMPETITION ======================================
+
+      !This section calculates the overall photosynthesis, factoring in light extinction due 
+      !to light competition. However, the calculation is performed at the grid cell level, 
+      !expressed as PLS per grid cell, rather than at the individual layer level.
 
       if(c4 .eq. 0) then
          !====================-C3 PHOTOSYNTHESIS-===============================
@@ -990,7 +1101,7 @@ contains
          jp2 = (-b+(sqrt(delta)))/(2.0*a)
          jp = dmin1(jp1,jp2)
 
-         !print*, 'jp_out', jp
+         !print*, 'var_A', a
 
          !Leaf level gross photosynthesis (minimum between jc, jl and je)
          !---------------------------------------------------------------
@@ -1005,7 +1116,7 @@ contains
          f1ab = f1a
          if(f1ab .lt. 0.0D0) f1ab = 0.0D0
 
-         ! print*, 'F1_OUT', f1ab
+         !print*, 'F1_default', f1ab
          return
       else
          !===========================-C4 PHOTOSYNTHESIS-=============================
