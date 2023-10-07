@@ -178,7 +178,6 @@ contains
       real(r_8), dimension(npls) :: diameter_aux, crown_aux, height_aux
       real(r_8), dimension(npls) :: delta_biomass
       real(r_8) :: max_height
-      integer(i_4) :: num_layer
       
       
       
@@ -338,9 +337,11 @@ contains
          call prod(dt1,catm, temp, soil_temp, p0, w, ipar, sla_aux(p),rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
                &, height_aux(ri), max_height,soil_sat, ph(p), ar(p), nppa(p)&
-               &, laia(p), f5(p), npp_layer(p), num_layer,vpd(p), rm(p), rg(p), rc2(p)&
+               &, laia(p), f5(p), npp_layer(p),vpd(p), rm(p), rg(p), rc2(p)&
                &, wue(p), c_def(p), vcmax(p), tra(p))
 
+
+         print*, 'NPP_LAYER_BUD', npp_layer(p)
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
          

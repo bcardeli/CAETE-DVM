@@ -597,7 +597,7 @@ contains
 
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
-        & n2cw,n2cf,height1,max_height,num_layer,npp_layer,f1ab,f1ab_layer,vm, amax)
+        & n2cw,n2cf,height1,max_height,npp_layer,f1ab,vm, amax)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -627,10 +627,7 @@ contains
       real(r_8),intent(out) :: f1ab ! Gross CO2 Assimilation Rate mol m-2 s-1
       real(r_8),intent(out) :: vm   ! PLS Vcmax mol m-2 s-1
       real(r_8),intent(out) :: amax ! light saturated PH rate
-      real(r_8),intent(out) :: f1ab_layer
       real(r_8),intent(out) :: npp_layer
-      integer(i_4),intent(out) :: num_layer !number of layers according to max height in each grid-cel
-
 
 
       real(r_8) :: f2,f3            !Michaelis-Menten CO2/O2 constant (Pa)
@@ -664,6 +661,7 @@ contains
 
       !Internal Variables [LIGHT COMPETITION] ---------------------------------------
       integer(i_4) :: n
+      integer(i_4) :: num_layer !number of layers according to max height in each grid-cel
       real(r_8) :: index_leaf
       real(r_8) :: layer_size !size of each layer in m. in each grid-cell
       integer(i_4) :: last_with_pls !last layer contains PLS
@@ -673,7 +671,7 @@ contains
       real(r_8) :: rm_layer
       real(r_8) :: ar_layer
       real(r_8) :: c_defcit_layer
-      real(r_8) :: array_dim
+      real(r_8) :: f1ab_layer
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -949,6 +947,8 @@ contains
                      c_defcit_layer = 0.0
                   endif
 
+                  print*, 'NPP_TOP', npp_layer
+
                endif
             else
                layer(n)%layer_id = layer(n+1)%layer_id-1  
@@ -1046,6 +1046,8 @@ contains
                   else
                      c_defcit_layer = 0.0
                   endif
+
+                  print*, 'NPP_BELOW', npp_layer
 
                endif
             endif 
