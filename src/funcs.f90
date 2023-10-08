@@ -597,30 +597,6 @@ contains
    !=================================================================
    !=================================================================
 
-   ! function mean_npp_out(mean_npp) result (mnpp_out)
-   !    use types
-   !    use layers
-
-   !    !real(r_8), intent(in) :: awood
-   !    real(r_8), dimension(num_layer), intent(in) :: mean_npp
-   !    real(r_8), dimension(num_layer) :: mnpp_out
-
-   !    !integer(i_4) :: n
-
-   !    ! num_layer = int(max_height/5.0)
-
-   !    ! allocate(mnpp_out(num_layer))
-
-   !    mnpp_out = mean_npp !INICIALIZE
-
-   !    ! do n = 1, num_layer
-   !    !    if (awood .gt. 0.0D0) then
-   !    !       mnpp_out(n) = mean_npp(n)
-   !    !    endif
-   !    ! enddo
-
-   ! end function mean_npp_ou
-
 
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
@@ -661,6 +637,7 @@ contains
 
       ! real(r_8), dimension(num_layer) :: meanpp_out
       real(r_8), dimension(num_layer),intent(out) :: mean_npp_layer
+      !real(r_8), dimension(num_layer) :: mean_biomass_layer
 
       ! real(r_8), dimension(1) :: mean_npp_layer
       ! real(r_8), dimension(1) :: meanpp_out
@@ -709,7 +686,7 @@ contains
       real(r_8) :: ar_layer
       real(r_8) :: c_defcit_layer
       real(r_8) :: f1ab_layer
-      !real(r_8) :: npp_layer
+      !real(r_8) :: total_biomass
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -720,6 +697,8 @@ contains
          real(r_8) :: mean_lai !mean LAI in a layer
          real(r_8) :: sum_npp
          real(r_8) :: mean_npp
+         ! real(r_8) :: sum_biomass
+         ! real(r_8) :: mean_biomass
          real(r_8) :: beers_law !layer's light extinction
          real(r_8) :: linc !layer's light incidence
          real(r_8) :: lused !layer's light used (relates to light extinction - Beers Law)
@@ -807,6 +786,8 @@ contains
          layer(n)%sum_lai = 0.0D0 
          layer(n)%sum_npp = 0.0D0
          layer(n)%mean_npp = 0.0D0
+         ! layer(n)%sum_biomass = 0.0D0
+         ! layer(n)%mean_biomass = 0.0D0
       enddo
 
       do n = 1, num_layer
@@ -888,6 +869,8 @@ contains
             llight = ipar
             npp_layer = 0.0D0
             mean_npp_layer = 0.0D0
+            ! total_biomass = 0.0D0
+            ! mean_biomass_layer = 0.0D0
          else
             if (n.eq.num_layer) then !highest layer
                layer(n)%layer_id = num_layer
@@ -1000,8 +983,16 @@ contains
 
                   mean_npp_layer(n) = layer(n)%mean_npp
                   
-                  !print*, 'MEAN_NPP_TOP_OUT', meanpp_out(n)
-                  ! print*, 'MEAN_NPP_PDR', mean_npp_layer(n)
+                  ! total_biomass = (cleaf + cfroot + cawood1)
+
+                  ! layer(n)%sum_biomass = layer(n)%sum_biomass+total_biomass
+                  ! layer(n)%mean_biomass = layer(n)%sum_biomass/layer(n)%num_height
+
+                  ! mean_biomass_layer(n) = layer(n)%mean_biomass
+
+                  
+                  ! print*, 'MEAN_BIOMASS_TOP', mean_biomass_layer(n), n
+                  ! !print*, 'MEAN_NPP_TOP', mean_npp_layer(n), 'altura', height1, n
 
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_TOP', npp_layer, 'camada', n, 'altura', height1
@@ -1111,6 +1102,8 @@ contains
                   layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
 
                   mean_npp_layer(n) = layer(n)%mean_npp
+
+                  print*, 'MEAN_NPP_BELOW', mean_npp_layer(n), 'altura', height1, n
 
                   !print*, 'MEAN_NPP_BELOW', mean_npp_layer
 

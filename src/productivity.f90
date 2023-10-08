@@ -124,6 +124,8 @@ contains
          & f1a,vm_out,jl_out,npp_layer,mean_npp_layer)
 
 
+    !print*, 'MEAN_NPP_prod.f90', mean_npp_layer, 'altura', height1
+
     ! if (num_layer .eq. 10 .and. awood .gt. 0.0D0) then
     !     print*, 'MEAN_NPP_PROD.f90', mean_npp_layer
     !     print*, 'num_layer', num_layer

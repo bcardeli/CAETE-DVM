@@ -180,6 +180,7 @@ contains
       real(r_8), dimension(:), allocatable :: idx_grasses, idx_pdia
       real(r_8), dimension(npls) :: diameter_aux, crown_aux, height_aux
       real(r_8), dimension(npls) :: delta_biomass
+      real(r_8), dimension(:), allocatable :: meanpp_aux 
       !real(r_8) :: max_height
       !real(r_8), dimension(:), allocatable :: npp_layer
       ! integer(i_4) :: num_layer
@@ -298,6 +299,7 @@ contains
       allocate(ca2(nlen))
       allocate(day_storage(3,nlen))
       allocate(height_int(nlen))
+      allocate(meanpp_aux(nlen))
       allocate(crown_int(nlen))
       allocate(co2_abs_se(nlen))
 
@@ -342,13 +344,21 @@ contains
          
          ! fpc_grid_int(p) = fpc_grid1(ri)
 
-
          call prod(dt1,catm, temp, soil_temp, p0, w, ipar, sla_aux(p),rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
                &, height_aux(ri),soil_sat, ph(p), ar(p), nppa(p)&
                &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
                &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer)
 
+         !mean_npp_layer: Sai um resultado médio de npp pra cada layer.
+         
+         if(dt1(7) .gt. 0.0D0) then
+            print*, 'MEAN_AUX', mean_npp_layer
+            !print*, 'MEAN_NUM_LAYER', mean_npp_layer(num_layer), 'num_layer', num_layer
+            !print*, 'MEAN_OUT_PROD', mean_npp_layer
+         else
+            print*, 'GRASS'
+         endif
          
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
@@ -609,7 +619,7 @@ contains
       deallocate(laia)
       deallocate(f5)
       deallocate(npp_layer)
-      !deallocate(mean_npp_layer)
+      deallocate(meanpp_aux)
       deallocate(f1)
       deallocate(vpd)
       deallocate(rc2)
