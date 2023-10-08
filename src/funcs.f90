@@ -55,7 +55,8 @@ module photo
         leap                   ,&
         ttype                  ,&
         pls_allometry          ,& ! (s) Plant life strategies allometry (height, diameter, crown area) functions
-        se_module                 ! (s) Subroutine to calculate SE (regulation)      
+        se_module                 ! (s) Subroutine to calculate SE (regulation)
+   
       !   density_ind            ,& ! (s) logic to density number (randon - to the inicialization)
       !   foliage_projective     ,&
       !   mort_occupation        ,& ! (s) logic to mortality relates to occupation/FPC
@@ -595,6 +596,7 @@ contains
    !=================================================================
    !=================================================================
 
+
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
         & n2cw,n2cf,height1,max_height,f1ab,vm,amax,npp_layer)
@@ -630,6 +632,9 @@ contains
       real(r_8),intent(out) :: npp_layer
       !integer(i_4),intent(out) :: num_layer
       ! real(r_8),dimension(:),intent(out) :: npp_layer
+
+      real(r_8),dimension(1) :: mean_npp_layer
+      ! real(r_8),dimension(:), allocatable :: sum_npp
 
 
 
@@ -748,7 +753,7 @@ contains
       ! print*, 'num layer is (funcs)', num_layer
 
       allocate(layer(1:num_layer))
-      ! allocate(flor(num_layer))
+      !allocate(mean_npp_layer(1:num_layer))
 
       layer_size = max_height/num_layer !length from one layer to another
       !print*, 'layer_size', layer_size
@@ -959,6 +964,9 @@ contains
                   layer(n)%sum_npp = layer(n)%sum_npp+npp_layer
                   layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
 
+                  mean_npp_layer(n) = layer(n)%mean_npp
+
+                  !print*, 'MEAN_NPP_TOP', mean_npp_layer(n)
 
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_TOP', npp_layer, 'camada', n, 'altura', height1
@@ -1066,6 +1074,10 @@ contains
 
                   layer(n)%sum_npp = layer(n)%sum_npp+npp_layer
                   layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
+
+                  mean_npp_layer(n) = layer(n)%mean_npp
+
+                  !print*, 'MEAN_NPP_BELOW', mean_npp_layer
 
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_BELOW', npp_layer, 'camada', n, 'altura', height1

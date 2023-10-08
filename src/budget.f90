@@ -347,6 +347,7 @@ contains
                &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
                &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p))
 
+
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
          
 
