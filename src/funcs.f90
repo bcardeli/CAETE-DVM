@@ -597,7 +597,7 @@ contains
 
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
-        & n2cw,n2cf,height1,max_height,npp_layer,f1ab,vm, amax)
+        & n2cw,n2cf,height1,max_height,f1ab,vm,amax,npp_layer)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -628,6 +628,9 @@ contains
       real(r_8),intent(out) :: vm   ! PLS Vcmax mol m-2 s-1
       real(r_8),intent(out) :: amax ! light saturated PH rate
       real(r_8),intent(out) :: npp_layer
+      !integer(i_4),intent(out) :: num_layer
+      ! real(r_8),dimension(:),intent(out) :: npp_layer
+
 
 
       real(r_8) :: f2,f3            !Michaelis-Menten CO2/O2 constant (Pa)
@@ -666,12 +669,13 @@ contains
       real(r_8) :: layer_size !size of each layer in m. in each grid-cell
       integer(i_4) :: last_with_pls !last layer contains PLS
       real(r_8) :: llight
-      real(r_8) ::gross_layer
+      real(r_8) :: gross_layer
       real(r_8) :: rg_layer
       real(r_8) :: rm_layer
       real(r_8) :: ar_layer
       real(r_8) :: c_defcit_layer
       real(r_8) :: f1ab_layer
+      !real(r_8) :: npp_layer
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -742,6 +746,7 @@ contains
       ! print*, 'num layer is (funcs)', num_layer
 
       allocate(layer(1:num_layer))
+      ! allocate(flor(num_layer))
 
       layer_size = max_height/num_layer !length from one layer to another
       !print*, 'layer_size', layer_size
@@ -947,7 +952,11 @@ contains
                      c_defcit_layer = 0.0
                   endif
 
-                  print*, 'NPP_TOP', npp_layer
+                  ! if (cawood1 .gt. 0.0D0) then
+                  !    print*, 'NPP_TOP', npp_layer, 'camada', n, 'altura', height1
+                  ! endif
+
+                  !print*, 'NPP_TOP', npp_layer, n
 
                endif
             else
@@ -1047,7 +1056,11 @@ contains
                      c_defcit_layer = 0.0
                   endif
 
-                  print*, 'NPP_BELOW', npp_layer
+                  ! if (cawood1 .gt. 0.0D0) then
+                  !    print*, 'NPP_BELOW', npp_layer, 'camada', n, 'altura', height1
+                  ! endif
+
+                  !print*, 'NPP_BELOW', npp_layer, num_layer 
 
                endif
             endif 

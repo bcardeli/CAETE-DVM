@@ -166,6 +166,7 @@ contains
       integer(i_2),dimension(:,:),allocatable   :: limitation_status ! D0=3
       integer(i_4), dimension(:, :),allocatable :: uptk_strat        ! D0=2
       INTEGER(i_4), dimension(:), allocatable :: lp ! index of living PLSs/living grasses
+      ! INTEGER(i_4), dimension(:), allocatable :: n
       real(r_8),dimension(:), allocatable :: height_int
       real(r_8),dimension(:), allocatable :: crown_int
       real(r_8),dimension(:), allocatable :: co2_abs_se
@@ -178,6 +179,8 @@ contains
       real(r_8), dimension(npls) :: diameter_aux, crown_aux, height_aux
       real(r_8), dimension(npls) :: delta_biomass
       real(r_8) :: max_height
+      !real(r_8), dimension(:), allocatable :: npp_layer
+      ! integer(i_4) :: num_layer
       
       
       
@@ -221,6 +224,7 @@ contains
       ! print*, 'DIAMETER', diameter_aux
 
       max_height = maxval(height_aux(:))
+      !print*, 'max_height', max_height
 
 
       nlen = sum(run)    ! New length for the arrays in the main loop
@@ -230,6 +234,7 @@ contains
       allocate(idx_grasses(nlen))
       allocate(idx_pdia(nlen))
       allocate(ar_fix_hr(nlen))
+      ! allocate(n(num_layer))
 
       idx_grasses(:) = 1.0D0
       idx_pdia(:) = 1.0D0
@@ -260,6 +265,7 @@ contains
       allocate(laia(nlen))
       allocate(f5(nlen))
       allocate(npp_layer(nlen))
+      !allocate(npp_layer(nlen))
       allocate(f1(nlen))
       allocate(vpd(nlen))
       allocate(rc2(nlen))
@@ -331,17 +337,15 @@ contains
 
          height_int(p) = height_aux(ri)
          crown_int(p) = crown_aux(ri)
+         
          ! fpc_grid_int(p) = fpc_grid1(ri)
 
 
          call prod(dt1,catm, temp, soil_temp, p0, w, ipar, sla_aux(p),rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
-               &, height_aux(ri), max_height,soil_sat, ph(p), ar(p), nppa(p)&
-               &, laia(p), f5(p), npp_layer(p),vpd(p), rm(p), rg(p), rc2(p)&
-               &, wue(p), c_def(p), vcmax(p), tra(p))
-
-
-         print*, 'NPP_LAYER_BUD', npp_layer(p)
+               &, height_aux(ri),max_height,soil_sat, ph(p), ar(p), nppa(p)&
+               &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
+               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p))
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
          
@@ -461,6 +465,7 @@ contains
          if(cl1_int(p) .lt. 0.0D0) cl1_int(p) = 0.0D0
          if(ca1_int(p) .lt. 0.0D0) ca1_int(p) = 0.0D0
          if(cf1_int(p) .lt. 0.0D0) cf1_int(p) = 0.0D0
+      
 
       enddo ! end pls_loop (p)
       !$OMP END PARALLEL DO
@@ -600,6 +605,7 @@ contains
       deallocate(laia)
       deallocate(f5)
       deallocate(npp_layer)
+      !deallocate(npp_layer)
       deallocate(f1)
       deallocate(vpd)
       deallocate(rc2)

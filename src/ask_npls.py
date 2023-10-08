@@ -116,6 +116,15 @@ module allometry_par
          turnover_rate = 0.5                !fix value for leaf and root turnover (Table 1, Sitch et al., 2003)
 end module allometry_par"""
 
+# module layers
+#    use types
+#    implicit none
+
+#    real(r_4),parameter,public :: max_height = 50.0
+#    integer(i_4),parameter,public :: num_layer = (max_height/5)
+
+# end module layers"""
+
 
 
 root = Path(os.getcwd()).resolve()

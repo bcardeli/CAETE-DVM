@@ -28,7 +28,7 @@ contains
 
   subroutine prod(dt,catm,temp,ts,p0,w,ipar,sla1,rh,emax,cl1_prod,&
        & ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,height1,max_height,wmax,ph,ar,&
-       & nppa,laia,f5,npp_layer,vpd,rm,rg,rc,wue,c_defcit,vm_out,e)
+       & nppa,laia,f5,vpd,rm,rg,rc,wue,c_defcit,vm_out,e,npp_layer)
 
     use types
     use global_par
@@ -69,6 +69,8 @@ contains
     real(r_8), intent(out) :: e     !sla   !specific leaf area (m2/kg)
     real(r_8), intent(out) :: vm_out
     real(r_8), intent(out) :: npp_layer
+    ! integer(i_4), intent(out) :: num_layer
+    ! real(r_8), intent(out) :: npp_layer
 
 !     Internal
 !     --------
@@ -116,8 +118,8 @@ contains
 
     call photosynthesis_rate(catm,temp,ts,p0,ipar,sla1,c4_int,n2cl,&
          & p2cl,cl1_prod,ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,awood,&
-         & n2cl_resp,n2cw_resp,n2cf_resp,height1,max_height,npp_layer,&
-         & f1a,vm_out,jl_out)
+         & n2cl_resp,n2cw_resp,n2cf_resp,height1,max_height,&
+         & f1a,vm_out,jl_out,npp_layer)
 
     ! VPD
     !========
