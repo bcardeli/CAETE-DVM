@@ -27,12 +27,13 @@ module productivity
 contains
 
   subroutine prod(dt,catm,temp,ts,p0,w,ipar,sla1,rh,emax,cl1_prod,&
-       & ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,height1,max_height,wmax,ph,ar,&
-       & nppa,laia,f5,vpd,rm,rg,rc,wue,c_defcit,vm_out,e,npp_layer)
+       & ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,height1,wmax,ph,ar,&
+       & nppa,laia,f5,vpd,rm,rg,rc,wue,c_defcit,vm_out,e,npp_layer,mean_npp_layer)
 
     use types
     use global_par
     use photo_par
+    use layers
     use photo
     use water
 
@@ -50,7 +51,7 @@ contains
     real(r_8), intent(in) :: beta_froot, wmax
     real(r_8), intent(in) :: sla1
     real(r_8), intent(in) :: height1
-    real(r_8), intent(in) :: max_height
+    !real(r_8), intent(in) :: max_height
     ! logical(l_1), intent(in) :: light_limit                !True for no ligth limitation
 
 !     Output
@@ -69,6 +70,7 @@ contains
     real(r_8), intent(out) :: e     !sla   !specific leaf area (m2/kg)
     real(r_8), intent(out) :: vm_out
     real(r_8), intent(out) :: npp_layer
+    real(r_8), dimension(num_layer),intent(out) :: mean_npp_layer
     ! integer(i_4), intent(out) :: num_layer
     ! real(r_8), intent(out) :: npp_layer
 
@@ -118,8 +120,14 @@ contains
 
     call photosynthesis_rate(catm,temp,ts,p0,ipar,sla1,c4_int,n2cl,&
          & p2cl,cl1_prod,ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,awood,&
-         & n2cl_resp,n2cw_resp,n2cf_resp,height1,max_height,&
-         & f1a,vm_out,jl_out,npp_layer)
+         & n2cl_resp,n2cw_resp,n2cf_resp,height1,&
+         & f1a,vm_out,jl_out,npp_layer,mean_npp_layer)
+
+
+    ! if (num_layer .eq. 10 .and. awood .gt. 0.0D0) then
+    !     print*, 'MEAN_NPP_PROD.f90', mean_npp_layer
+    !     print*, 'num_layer', num_layer
+    ! endif
 
     ! VPD
     !========

@@ -56,6 +56,7 @@ module photo
         ttype                  ,&
         pls_allometry          ,& ! (s) Plant life strategies allometry (height, diameter, crown area) functions
         se_module                 ! (s) Subroutine to calculate SE (regulation)
+        
    
       !   density_ind            ,& ! (s) logic to density number (randon - to the inicialization)
       !   foliage_projective     ,&
@@ -596,16 +597,41 @@ contains
    !=================================================================
    !=================================================================
 
+   ! function mean_npp_out(mean_npp) result (mnpp_out)
+   !    use types
+   !    use layers
+
+   !    !real(r_8), intent(in) :: awood
+   !    real(r_8), dimension(num_layer), intent(in) :: mean_npp
+   !    real(r_8), dimension(num_layer) :: mnpp_out
+
+   !    !integer(i_4) :: n
+
+   !    ! num_layer = int(max_height/5.0)
+
+   !    ! allocate(mnpp_out(num_layer))
+
+   !    mnpp_out = mean_npp !INICIALIZE
+
+   !    ! do n = 1, num_layer
+   !    !    if (awood .gt. 0.0D0) then
+   !    !       mnpp_out(n) = mean_npp(n)
+   !    !    endif
+   !    ! enddo
+
+   ! end function mean_npp_ou
+
 
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
-        & n2cw,n2cf,height1,max_height,f1ab,vm,amax,npp_layer)
+        & n2cw,n2cf,height1,f1ab,vm,amax,npp_layer,mean_npp_layer)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
       use types
       use global_par
       use photo_par
+      use layers
       ! implicit none
       ! I
       real(r_4),intent(in) :: temp,ts  ! temp °C
@@ -618,7 +644,7 @@ contains
       ! real(r_8),intent(in) :: leaf_turnover   ! y
       real(r_8),intent(in) :: sla_var
       real(r_8),intent(in) :: height1
-      real(r_8),intent(in) :: max_height
+      !real(r_8),intent(in) :: max_height
       real(r_8),intent(in) :: cawood1
       real(r_8),intent(in) :: cleaf, cfroot
       real(r_8),intent(in) :: beta_leaf, beta_awood, beta_froot
@@ -633,9 +659,12 @@ contains
       !integer(i_4),intent(out) :: num_layer
       ! real(r_8),dimension(:),intent(out) :: npp_layer
 
-      real(r_8),dimension(1) :: mean_npp_layer
-      ! real(r_8),dimension(:), allocatable :: sum_npp
+      ! real(r_8), dimension(num_layer) :: meanpp_out
+      real(r_8), dimension(num_layer),intent(out) :: mean_npp_layer
 
+      ! real(r_8), dimension(1) :: mean_npp_layer
+      ! real(r_8), dimension(1) :: meanpp_out
+      ! real(r_8),dimension(:), allocatable :: sum_npp
 
 
       real(r_8) :: f2,f3            !Michaelis-Menten CO2/O2 constant (Pa)
@@ -669,7 +698,7 @@ contains
 
       !Internal Variables [LIGHT COMPETITION] ---------------------------------------
       integer(i_4) :: n
-      integer(i_4) :: num_layer !number of layers according to max height in each grid-cel
+      !integer(i_4) :: num_layer !number of layers according to max height in each grid-cel
       real(r_8) :: index_leaf
       real(r_8) :: layer_size !size of each layer in m. in each grid-cell
       integer(i_4) :: last_with_pls !last layer contains PLS
@@ -703,6 +732,7 @@ contains
       nbio2 = nbio !nrubisco(leaf_turnover, nbio)
       pbio2 = pbio !nrubisco(leaf_turnover, pbio)
       aux_ipar = 0.0D0 !inicialize
+      ! mnpp_out = 0.0D0 !inicialize
 
       ! if (nbio2 .lt. 0.01D0) nbio2 = 0.01D0
       ! if (pbio2 .lt. 0.01D0) pbio2 = 0.01D0
@@ -746,14 +776,17 @@ contains
       !       LIGHT COMPETITION DYNAMIC. [LAYERS]
       ! =================================================
 
-      num_layer = 0
+      !num_layer = 0
       layer_size = 0.0D0
 
-      num_layer = nint(max_height/5)
+      !num_layer = nint(max_height/5)
       ! print*, 'num layer is (funcs)', num_layer
 
       allocate(layer(1:num_layer))
       !allocate(mean_npp_layer(1:num_layer))
+
+      ! allocate(mean_npp_layer(num_layer))
+      ! allocate(meanpp_out(size(mean_npp_layer)))
 
       layer_size = max_height/num_layer !length from one layer to another
       !print*, 'layer_size', layer_size
@@ -854,6 +887,7 @@ contains
             aux_ipar = ipar
             llight = ipar
             npp_layer = 0.0D0
+            mean_npp_layer = 0.0D0
          else
             if (n.eq.num_layer) then !highest layer
                layer(n)%layer_id = num_layer
@@ -965,8 +999,9 @@ contains
                   layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
 
                   mean_npp_layer(n) = layer(n)%mean_npp
-
-                  !print*, 'MEAN_NPP_TOP', mean_npp_layer(n)
+                  
+                  !print*, 'MEAN_NPP_TOP_OUT', meanpp_out(n)
+                  ! print*, 'MEAN_NPP_PDR', mean_npp_layer(n)
 
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_TOP', npp_layer, 'camada', n, 'altura', height1

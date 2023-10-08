@@ -36,6 +36,7 @@ contains
 
       use types
       use global_par, only: ntraits, npls
+      use layers
       use alloc
       use productivity
       use omp_lib
@@ -170,6 +171,7 @@ contains
       real(r_8),dimension(:), allocatable :: height_int
       real(r_8),dimension(:), allocatable :: crown_int
       real(r_8),dimension(:), allocatable :: co2_abs_se
+      real(r_8),dimension(num_layer) :: mean_npp_layer
       ! real(r_8),dimension(:), allocatable :: fpc_grid_int
 
       real(r_8), dimension(npls) :: awood_aux, nleaf, nwood, nroot, uptk_costs, pdia_aux, dwood_aux, sla_aux
@@ -178,7 +180,7 @@ contains
       real(r_8), dimension(:), allocatable :: idx_grasses, idx_pdia
       real(r_8), dimension(npls) :: diameter_aux, crown_aux, height_aux
       real(r_8), dimension(npls) :: delta_biomass
-      real(r_8) :: max_height
+      !real(r_8) :: max_height
       !real(r_8), dimension(:), allocatable :: npp_layer
       ! integer(i_4) :: num_layer
       
@@ -223,7 +225,7 @@ contains
       ! print*, 'CAWOOD (kg/m2)', ca1_pft
       ! print*, 'DIAMETER', diameter_aux
 
-      max_height = maxval(height_aux(:))
+      !max_height = maxval(height_aux(:))
       !print*, 'max_height', max_height
 
 
@@ -265,7 +267,7 @@ contains
       allocate(laia(nlen))
       allocate(f5(nlen))
       allocate(npp_layer(nlen))
-      !allocate(npp_layer(nlen))
+      !allocate(mean_npp_layer(nlen))
       allocate(f1(nlen))
       allocate(vpd(nlen))
       allocate(rc2(nlen))
@@ -343,10 +345,11 @@ contains
 
          call prod(dt1,catm, temp, soil_temp, p0, w, ipar, sla_aux(p),rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
-               &, height_aux(ri),max_height,soil_sat, ph(p), ar(p), nppa(p)&
+               &, height_aux(ri),soil_sat, ph(p), ar(p), nppa(p)&
                &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
-               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p))
+               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer)
 
+         
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
          
@@ -606,7 +609,7 @@ contains
       deallocate(laia)
       deallocate(f5)
       deallocate(npp_layer)
-      !deallocate(npp_layer)
+      !deallocate(mean_npp_layer)
       deallocate(f1)
       deallocate(vpd)
       deallocate(rc2)
