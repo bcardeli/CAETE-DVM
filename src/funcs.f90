@@ -684,6 +684,8 @@ contains
          real(r_8) :: layer_height !Height of respective layer of the floor (in m.)
          real(r_8) :: sum_lai !LAI sum in a layer
          real(r_8) :: mean_lai !mean LAI in a layer
+         real(r_8) :: sum_npp
+         real(r_8) :: mean_npp
          real(r_8) :: beers_law !layer's light extinction
          real(r_8) :: linc !layer's light incidence
          real(r_8) :: lused !layer's light used (relates to light extinction - Beers Law)
@@ -765,6 +767,8 @@ contains
          layer(n)%sum_height = 0.0D0
          layer(n)%mean_height = 0.0D0
          layer(n)%sum_lai = 0.0D0 
+         layer(n)%sum_npp = 0.0D0
+         layer(n)%mean_npp = 0.0D0
       enddo
 
       do n = 1, num_layer
@@ -952,6 +956,10 @@ contains
                      c_defcit_layer = 0.0
                   endif
 
+                  layer(n)%sum_npp = layer(n)%sum_npp+npp_layer
+                  layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
+
+
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_TOP', npp_layer, 'camada', n, 'altura', height1
                   ! endif
@@ -1055,6 +1063,9 @@ contains
                   else
                      c_defcit_layer = 0.0
                   endif
+
+                  layer(n)%sum_npp = layer(n)%sum_npp+npp_layer
+                  layer(n)%mean_npp = layer(n)%sum_npp/layer(n)%num_height
 
                   ! if (cawood1 .gt. 0.0D0) then
                   !    print*, 'NPP_BELOW', npp_layer, 'camada', n, 'altura', height1
