@@ -600,7 +600,7 @@ contains
 
    subroutine photosynthesis_rate(c_atm,temp,ts,p0,ipar,sla_var,c4,nbio,pbio,&
         & cleaf,cawood1,cfroot,beta_leaf,beta_awood,beta_froot,awood,n2cl,&
-        & n2cw,n2cf,height1,f1ab,vm,amax,npp_layer,mean_npp_layer)
+        & n2cw,n2cf,height1,f1ab,vm,amax,npp_layer,mean_npp_layer,mean_biomass_layer)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -637,7 +637,7 @@ contains
 
       ! real(r_8), dimension(num_layer) :: meanpp_out
       real(r_8), dimension(num_layer),intent(out) :: mean_npp_layer
-      !real(r_8), dimension(num_layer) :: mean_biomass_layer
+      real(r_8), dimension(num_layer),intent(out) :: mean_biomass_layer
 
       ! real(r_8), dimension(1) :: mean_npp_layer
       ! real(r_8), dimension(1) :: meanpp_out
@@ -686,7 +686,7 @@ contains
       real(r_8) :: ar_layer
       real(r_8) :: c_defcit_layer
       real(r_8) :: f1ab_layer
-      !real(r_8) :: total_biomass
+      real(r_8) :: total_biomass
 
       type :: layer_array
          real(r_8) :: sum_height
@@ -697,8 +697,8 @@ contains
          real(r_8) :: mean_lai !mean LAI in a layer
          real(r_8) :: sum_npp
          real(r_8) :: mean_npp
-         ! real(r_8) :: sum_biomass
-         ! real(r_8) :: mean_biomass
+         real(r_8) :: sum_biomass
+         real(r_8) :: mean_biomass
          real(r_8) :: beers_law !layer's light extinction
          real(r_8) :: linc !layer's light incidence
          real(r_8) :: lused !layer's light used (relates to light extinction - Beers Law)
@@ -786,8 +786,8 @@ contains
          layer(n)%sum_lai = 0.0D0 
          layer(n)%sum_npp = 0.0D0
          layer(n)%mean_npp = 0.0D0
-         ! layer(n)%sum_biomass = 0.0D0
-         ! layer(n)%mean_biomass = 0.0D0
+         layer(n)%sum_biomass = 0.0D0
+         layer(n)%mean_biomass = 0.0D0
       enddo
 
       do n = 1, num_layer
@@ -869,8 +869,8 @@ contains
             llight = ipar
             npp_layer = 0.0D0
             mean_npp_layer = 0.0D0
-            ! total_biomass = 0.0D0
-            ! mean_biomass_layer = 0.0D0
+            total_biomass = 0.0D0
+            mean_biomass_layer = 0.0D0
          else
             if (n.eq.num_layer) then !highest layer
                layer(n)%layer_id = num_layer
@@ -930,6 +930,8 @@ contains
                      f1ab_layer = f1a
                      if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
 
+                     !print*, 'IPAR_layer_top', aux_ipar, 'altura', height1
+
                   endif
 
                   !For C4 plants (represented by the grasses in the CAETÊ model)
@@ -983,15 +985,15 @@ contains
 
                   mean_npp_layer(n) = layer(n)%mean_npp
                   
-                  ! total_biomass = (cleaf + cfroot + cawood1)
+                  total_biomass = (cleaf + cfroot + cawood1)
 
-                  ! layer(n)%sum_biomass = layer(n)%sum_biomass+total_biomass
-                  ! layer(n)%mean_biomass = layer(n)%sum_biomass/layer(n)%num_height
+                  layer(n)%sum_biomass = layer(n)%sum_biomass+total_biomass
+                  layer(n)%mean_biomass = layer(n)%sum_biomass/layer(n)%num_height
 
-                  ! mean_biomass_layer(n) = layer(n)%mean_biomass
+                  mean_biomass_layer(n) = layer(n)%mean_biomass
 
-                  
                   ! print*, 'MEAN_BIOMASS_TOP', mean_biomass_layer(n), n
+                  ! print*, 'CLEAF', cleaf, '|', 'CFROOT', cfroot, '|', 'CWOOD', cawood1, '|', 'ALTURA', height1
                   ! !print*, 'MEAN_NPP_TOP', mean_npp_layer(n), 'altura', height1, n
 
                   ! if (cawood1 .gt. 0.0D0) then
@@ -1051,6 +1053,8 @@ contains
                      f1ab_layer = f1a
                      if(f1ab_layer .lt. 0.0D0) f1ab_layer = 0.0D0
 
+                     !print*, 'IPAR_layer_below', aux_ipar, 'altura', height1
+
                   endif
 
                   !For C4 plants (represented by the grasses in the CAETÊ model)
@@ -1103,7 +1107,14 @@ contains
 
                   mean_npp_layer(n) = layer(n)%mean_npp
 
-                  print*, 'MEAN_NPP_BELOW', mean_npp_layer(n), 'altura', height1, n
+                  total_biomass = (cleaf + cfroot + cawood1)
+
+                  layer(n)%sum_biomass = layer(n)%sum_biomass+total_biomass
+                  layer(n)%mean_biomass = layer(n)%sum_biomass/layer(n)%num_height
+
+                  mean_biomass_layer(n) = layer(n)%mean_biomass
+
+                  !print*, 'MEAN_BIOMASS_BELOW', mean_biomass_layer(n), 'altura', height1, n
 
                   !print*, 'MEAN_NPP_BELOW', mean_npp_layer
 
@@ -1181,8 +1192,6 @@ contains
 
          f1ab = f1a
          if(f1ab .lt. 0.0D0) f1ab = 0.0D0
-
-         !print*, 'F1_default', f1ab
          return
       else
          !===========================-C4 PHOTOSYNTHESIS-=============================
@@ -1235,6 +1244,7 @@ contains
 
          f1ab = f1a
          if(f1ab .lt. 0.0D0) f1ab = 0.0D0
+
          return
       endif
    end subroutine photosynthesis_rate

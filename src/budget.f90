@@ -172,6 +172,7 @@ contains
       real(r_8),dimension(:), allocatable :: crown_int
       real(r_8),dimension(:), allocatable :: co2_abs_se
       real(r_8),dimension(num_layer) :: mean_npp_layer
+      real(r_8),dimension(num_layer) :: mean_biomass_layer
       ! real(r_8),dimension(:), allocatable :: fpc_grid_int
 
       real(r_8), dimension(npls) :: awood_aux, nleaf, nwood, nroot, uptk_costs, pdia_aux, dwood_aux, sla_aux
@@ -348,17 +349,19 @@ contains
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
                &, height_aux(ri),soil_sat, ph(p), ar(p), nppa(p)&
                &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
-               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer)
+               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer,mean_biomass_layer)
 
          !mean_npp_layer: Sai um resultado médio de npp pra cada layer.
+         !mean_biomass_layer: Sai um resultado médio de biomassa pra cada layer.
          
-         if(dt1(7) .gt. 0.0D0) then
-            print*, 'MEAN_AUX', mean_npp_layer
-            !print*, 'MEAN_NUM_LAYER', mean_npp_layer(num_layer), 'num_layer', num_layer
-            !print*, 'MEAN_OUT_PROD', mean_npp_layer
-         else
-            print*, 'GRASS'
-         endif
+         ! if(dt1(7) .gt. 0.0D0) then
+         !    print*, 'MEAN_NPP', mean_npp_layer
+         !    print*, 'MEAN_BIOMASS', mean_biomass_layer
+         !    !print*, 'MEAN_NUM_LAYER', mean_npp_layer(num_layer), 'num_layer', num_layer
+         !    !print*, 'MEAN_OUT_PROD', mean_npp_layer
+         ! else
+         !    print*, 'GRASS'
+         ! endif
          
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
