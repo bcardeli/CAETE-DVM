@@ -686,7 +686,7 @@ def create_ncG3(table, interval, nc_out):
     elif out_data:
         print(f"\n\nSaving outputs in {nc_out.resolve()}")
 
-    vars = ["rcm", "runom", "evapm", "wsoil", "cleaf", "cawood",
+    vars = ["rcm", "rsds", "runom", "evapm", "wsoil", "cleaf", "cawood",
             "cfroot", "litter_l", "cwd", "co2_abs", "litter_fr", "litter_n",
             "litter_p", "sto_c", "sto_n", "sto_p", "c_cost"]
 
@@ -707,6 +707,7 @@ def create_ncG3(table, interval, nc_out):
     print('dayf = ', cftime.num2date(stop, time_units, calendar))
 
     rcm = np.zeros(shape=(dm1, 61, 71), dtype=np.float32) - 9999.0
+    rsds = np.zeros(shape=(dm1, 61, 71), dtype=np.float32) - 9999.0
     runom = np.zeros(shape=(dm1, 61, 71), dtype=np.float32) - 9999.0
     evapm = np.zeros(shape=(dm1, 61, 71), dtype=np.float32) - 9999.0
     wsoil = np.zeros(shape=(dm1, 61, 71), dtype=np.float32) - 9999.0
@@ -737,6 +738,8 @@ def create_ncG3(table, interval, nc_out):
     for i, day in enumerate(dates):
         out = table.read_where(day)
         rcm[i, :, :] = assemble_layer(out['grid_y'], out['grid_x'], out['rcm'])
+        rsds[i, :, :] = assemble_layer(
+            out['grid_y'], out['grid_x'], out['rsds'])
         runom[i, :, :] = assemble_layer(
             out['grid_y'], out['grid_x'], out['runom'])
         evapm[i, :, :] = assemble_layer(
@@ -790,11 +793,11 @@ def create_ncG3(table, interval, nc_out):
     wsoil = swsoil + wsoil
     np.place(wsoil, mask=swsoil == -9999.0, vals=NO_DATA)
 
-    vars = ["rcm", "runom", "evapm", "wsoil", "cleaf", "cawood",
+    vars = ["rcm", "rsds", "runom", "evapm", "wsoil", "cleaf", "cawood",
             "cfroot", "litter_l", "cwd", "co2_abs", "litter_fr", "litter_n",
             "litter_p", "sto_c", "sto_n", "sto_p", "c_cost"]
 
-    arr = (rcm, runom, evapm, wsoil, cleaf, cawood, cfroot,
+    arr = (rcm, rsds, runom, evapm, wsoil, cleaf, cawood, cfroot,
            litter_l, cwd, co2_abs, litter_fr, litter_n, litter_p,
            sto1, sto2, sto3, c_cost)
 

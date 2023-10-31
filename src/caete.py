@@ -525,7 +525,8 @@ class grd:
                      'u_strat': self.uptake_strategy,
                      'storage_pool': self.storage_pool,
                      'calendar': self.calendar,    # Calendar name
-                     'time_unit': self.time_unit,   # Time unit
+                     'time_unit': self.time_unit,   # Time unit7
+                     'rsds': self.rsds,
                      'sind': index[0],
                      'eind': index[1]}
         # Flush attrs
@@ -841,7 +842,7 @@ class grd:
         # transforamando de Pascal pra mbar (hPa)
         p_atm = self.ps[lb: hb + 1] * 0.01
         # W m-2 to mol m-2 s-1 ! 0.5 converts RSDS to PAR
-        ipar = self.rsds[lb: hb + 1] * 0.5 / 2.18e5
+        ipar = self.rsds[lb: hb + 1] * 0.5 / 2.18e5 #*********
         ru = self.rhs[lb: hb + 1] / 100.0
 
         year0 = start.year

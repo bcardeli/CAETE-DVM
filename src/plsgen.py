@@ -262,7 +262,7 @@ def table_gen(NPLS, fpath=None):
     index1 = 0
     # rtime_wood = vec_ranging(np.random.beta(
     # 2, 4, r_ceil), 1.0, 150)
-    rtime_wood = np.random.uniform(0.20, 100.0, r_ceil)
+    rtime_wood = np.random.uniform(0.20, 150.0, r_ceil)
     while index1 < diffw:
         restime = np.zeros(shape=(3,), dtype=np.float64)
         dwood = np.random.uniform(0.5, 0.9, NPLS) # [g/cm3]; Global Wood Density Database (Zanne et al., 2009)
