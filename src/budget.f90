@@ -555,6 +555,11 @@ contains
       cp(3) = sum(cf1_int * ocp_coeffs, mask= .not. isnan(cf1_int))
       cp(4) = sum(ar_fix_hr * (ocp_coeffs * idx_pdia), mask= .not. isnan(ar_fix_hr))
 
+      ! if(dt1(7) .gt. 0.0D0) then
+      !    print*, 'MEAN_NPP', mean_npp_layer
+      !    print*, 'MEAN_BIOMASS', mean_biomass_layer
+      ! endif
+
 
       ! FILTER BAD VALUES
       do p = 1,2
