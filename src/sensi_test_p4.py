@@ -40,8 +40,8 @@ dump_folder = Path(f"{BASE_RUN}_p4")
 
 for gridcell in init_conditions:
     gridcell.clean_run(dump_folder, "init_cond")
-    gridcell.tas += 4.0
-    #gridcell.rsds -= gridcell.rsds * 0.18 #REDUÇÃO LA NINA
+    #gridcell.tas += 4.0
+    gridcell.rsds -= gridcell.rsds * 0.18 #REDUÇÃO LA NINA
     
 
 h52nc.EXPERIMENT = "p4"
@@ -55,9 +55,9 @@ def zip_gridtime(grd_pool, interval):
     return res
 
 
-def apply_funX(grid, brk):
-    grid.run_caete(brk[0], brk[1], fix_co2=600.0) ##para fazer co2 e temperatura juntos
-    return grid
+# def apply_funX(grid, brk):
+#     grid.run_caete(brk[0], brk[1], fix_co2=600.0) ##para fazer co2 e temperatura juntos
+#     return grid
 
 
 n_proc = mp.cpu_count()
