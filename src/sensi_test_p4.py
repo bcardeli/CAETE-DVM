@@ -40,7 +40,7 @@ dump_folder = Path(f"{BASE_RUN}_p4")
 
 for gridcell in init_conditions:
     gridcell.clean_run(dump_folder, "init_cond")
-    #gridcell.tas += 4.0
+    gridcell.tas += 0.0
     gridcell.rsds -= gridcell.rsds * 0.18 #REDUÇÃO LA NINA
     
 
