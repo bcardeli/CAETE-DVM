@@ -56,7 +56,7 @@ def zip_gridtime(grd_pool, interval):
 
 
 def apply_funX(grid, brk):
-    grid.run_caete(brk[0], brk[1]) # fiz_co2=600.0 ##para fazer co2 e temperatura juntos
+    grid.run_caete(brk[0], brk[1], fix_co2=600.0) ##para fazer co2 e ipar juntos juntos
     return grid
 
 
