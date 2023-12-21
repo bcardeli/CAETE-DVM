@@ -208,7 +208,7 @@ def catch_out_budget(out):
            "laiavg", "rcavg", "f5avg", "rmavg", "rgavg", "cleafavg_pft", "cawoodavg_pft",
            "cfrootavg_pft", "stodbg", "ocpavg", "wueavg", "cueavg", "c_defavg", "vcmax",
            "specific_la", "nupt", "pupt", "litter_l", "cwd", "litter_fr", "npp2pay", "lnc", "delta_cveg",
-           "co2_abs", "limitation_status", "uptk_strat", "mean_npp", "mean_biomass",'cp', 'c_cost_cwm']
+           "co2_abs", "limitation_status", "uptk_strat",'cp', 'c_cost_cwm']
 
     return dict(zip(lst, out))
 
@@ -360,8 +360,6 @@ class grd:
         self.storage_pool = None
         self.lim_status = None
         self.uptake_strategy = None
-        self.mean_npp = None
-        self.mean_biomass = None
         self.carbon_costs = None
 
         # WATER POOLS
@@ -468,8 +466,6 @@ class grd:
             shape=(3, npls, n), dtype=np.dtype('int16'), order='F')
         self.uptake_strategy = np.zeros(
             shape=(2, npls, n), dtype=np.dtype('int32'), order='F')
-        self.mean_npp = np.zeros(shape=(num_layer, n), order='F')
-        self.mean_biomass = np.zeros(shape=(num_layer, n), order='F')
 
     def _flush_output(self, run_descr, index):
         """1 - Clean variables that receive outputs from the fortran subroutines
@@ -529,8 +525,6 @@ class grd:
                      'lim_status': self.lim_status,
                      'c_cost': self.carbon_costs,
                      'u_strat': self.uptake_strategy,
-                     'mean_npp_layer': self.mean_npp,
-                     'mean_biomass_layer': self.mean_biomass,
                      'storage_pool': self.storage_pool,
                      'calendar': self.calendar,    # Calendar name
                      'time_unit': self.time_unit,   # Time unit7
@@ -581,9 +575,7 @@ class grd:
         self.ls = None
         self.ls_id = None
         self.lim_status = None
-        self.mean_npp = None
-        self.mean_biomass = None
-        self.carbon_costs = None,
+        self.carbon_costs = None
         self.uptake_strategy = None
 
         return to_pickle
