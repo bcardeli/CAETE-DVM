@@ -31,7 +31,7 @@ contains
         &, laiavg, rcavg, f5avg, rmavg, rgavg, cleafavg_pft, cawoodavg_pft&
         &, cfrootavg_pft, storage_out_bdgt_1, ocpavg, wueavg, cueavg, c_defavg&
         &, vcmax_1, specific_la_1, nupt_1, pupt_1, litter_l_1, cwd_1, litter_fr_1, npp2pay_1, lit_nut_content_1&
-        &, delta_cveg_1,co2_abs_se_1, limitation_status_1, uptk_strat_1, cp, c_cost_cwm)
+        &, delta_cveg_1,co2_abs_se_1, limitation_status_1, uptk_strat_1, mean_npp_1, mean_biomass_1, cp, c_cost_cwm)
 
 
       use types
@@ -104,6 +104,8 @@ contains
       real(r_8),dimension(3,npls),intent(out) :: storage_out_bdgt_1
       integer(i_2),dimension(3,npls),intent(out) :: limitation_status_1
       integer(i_4),dimension(2,npls),intent(out) :: uptk_strat_1
+      real(r_8), dimension(num_layer), intent(out) :: mean_npp_1
+      real(r_8), dimension(num_layer), intent(out) :: mean_biomass_1
       real(r_8),dimension(npls),intent(out) ::  npp2pay_1 ! C costs of N/P uptake
       real(r_8),dimension(4),intent(out) :: cp ! Aux cp(1:3) CVEG C POOLS cp(4) Auxiliary to HR
       real(r_8),intent(out) :: c_cost_cwm
@@ -171,8 +173,8 @@ contains
       real(r_8),dimension(:), allocatable :: height_int
       real(r_8),dimension(:), allocatable :: crown_int
       real(r_8),dimension(:), allocatable :: co2_abs_se
-      real(r_8),dimension(num_layer) :: mean_npp_layer
-      real(r_8),dimension(num_layer) :: mean_biomass_layer
+      real(r_8),dimension(:), allocatable :: mean_npp_layer
+      real(r_8),dimension(:), allocatable :: mean_biomass_layer
       ! real(r_8),dimension(:), allocatable :: fpc_grid_int
 
       real(r_8), dimension(npls) :: awood_aux, nleaf, nwood, nroot, uptk_costs, pdia_aux, dwood_aux, sla_aux
@@ -269,7 +271,8 @@ contains
       allocate(laia(nlen))
       allocate(f5(nlen))
       allocate(npp_layer(nlen))
-      !allocate(mean_npp_layer(nlen))
+      allocate(mean_npp_layer(num_layer))
+      allocate(mean_biomass_layer(num_layer))
       allocate(f1(nlen))
       allocate(vpd(nlen))
       allocate(rc2(nlen))
@@ -349,14 +352,14 @@ contains
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
                &, height_aux(ri),soil_sat, ph(p), ar(p), nppa(p)&
                &, laia(p), f5(p),vpd(p), rm(p), rg(p), rc2(p)&
-               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer,mean_biomass_layer)
+               &, wue(p), c_def(p), vcmax(p), tra(p), npp_layer(p),mean_npp_layer(:),mean_biomass_layer(:))
 
          !mean_npp_layer: Sai um resultado médio de npp pra cada layer.
          !mean_biomass_layer: Sai um resultado médio de biomassa pra cada layer.
          
          ! if(dt1(7) .gt. 0.0D0) then
-         !    print*, 'MEAN_NPP', mean_npp_layer
-         !    print*, 'MEAN_BIOMASS', mean_biomass_layer
+         !    print*, 'MEAN_NPP', mean_npp_layer(:)
+         !    !print*, 'MEAN_BIOMASS', mean_biomass_layer(:)
          !    !print*, 'MEAN_NUM_LAYER', mean_npp_layer(num_layer), 'num_layer', num_layer
          !    !print*, 'MEAN_OUT_PROD', mean_npp_layer
          ! else
@@ -519,6 +522,8 @@ contains
       delta_cveg_1(:, :) = 0.0D0
       storage_out_bdgt_1(:, :) = 0.0D0
       limitation_status_1(:,:) = 0
+      mean_npp_1(:) = 0.0D0
+      mean_biomass_1(:) = 0.0D0
       uptk_strat_1(:,:) = 0
       npp2pay_1(:) = 0.0
       
@@ -614,6 +619,8 @@ contains
          delta_cveg_1(:,ri) = delta_cveg(:,p)
          storage_out_bdgt_1(:,ri) = storage_out_bdgt(:,p)
          limitation_status_1(:,ri) = limitation_status(:,p)
+         mean_npp_1(:) = mean_npp_layer(:)
+         mean_biomass_1(:) = mean_biomass_layer(:)
          uptk_strat_1(:,ri) = uptk_strat(:,p)
          npp2pay_1(ri) = npp2pay(p)
 
@@ -627,7 +634,8 @@ contains
       deallocate(laia)
       deallocate(f5)
       deallocate(npp_layer)
-      deallocate(meanpp_aux)
+      deallocate(mean_npp_layer)
+      deallocate(mean_biomass_layer)
       deallocate(f1)
       deallocate(vpd)
       deallocate(rc2)
