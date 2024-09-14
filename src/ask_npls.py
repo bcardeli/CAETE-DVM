@@ -1,24 +1,10 @@
 import os
-import json
 from pathlib import Path
 
 descrp = "This script creates a global.f90 file with an asked iniital NPLS number"
 
-# Carrega o arquivo de configuração
-with open('config.json') as f:
-    config = json.load(f)
 
-s = config['num_initial_ev']
-print(f"Using {s} initial PLS.")
-
-#s = int(input("Number of initial random EV (10 - 3000): "))
-
-# Gravar o número em um arquivo para que o script R possa ler
-with open('npls.txt', 'w') as file:
-    file.write(f"{s}\n")
-    print(f"Número de estratégias gravado no arquivo npls.txt: {s}")
-
-
+s = int(input("Number of initial random EV (10 - 3000): "))
 
 global_f90 = f"""
 ! Copyright 2017- LabTerra
