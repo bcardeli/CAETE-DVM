@@ -123,7 +123,7 @@ contains
       f4sun = f_four(1,cleaf,sla)
       f4shade = f_four(2,cleaf,sla)
 
-      ph = real((0.012D0*31557600.0D0*f1in*f4sun*f4shade), r_4)
+      ph = real((0.012D0*31557600.0D0*f1in*(f4sun+f4shade)), r_4)
       ! f4sun + f4shade as a sum made by B.Cardeli on 20/03/26 
       ! based in De Pury & Farqahar (1997) Eq. 24 
 
