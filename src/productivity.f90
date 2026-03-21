@@ -119,7 +119,7 @@ contains
 
     !Stomatal resistence
     !===================
-    rc_pot = canopy_resistence(vpd, f1a, g1, catm) ! Potential RCM leaf level - s m-1
+    rc_pot = canopy_resistence(vpd, f1a, g1, catm,temp) ! Potential RCM leaf level - s m-1
 
     !Water stress response modifier (dimensionless)
     !----------------------------------------------
@@ -135,13 +135,13 @@ contains
        f1 = 0.0      !Temperature above/below photosynthesis windown
     endif
 
-    rc_aux = canopy_resistence(vpd, f1, g1, catm)  ! RCM leaf level -!s m-1
+    rc_aux = canopy_resistence(vpd, f1, g1, catm,temp)  ! RCM leaf level -!s m-1
 
-    wue = water_ue(f1, rc_aux, p0, vpd)
+    wue = water_ue(f1, rc_aux, p0, vpd,temp)
 
 
     !     calcula a transpiração em mm/s
-    e = transpiration(rc_aux, p0, vpd, 2)
+    e = transpiration(rc_aux, p0, vpd, 2, temp)
 
     ! Leaf area index (m2/m2)
     ! recalcula rc e escalona para dossel

@@ -124,6 +124,9 @@ contains
       f4shade = f_four(2,cleaf,sla)
 
       ph = real((0.012D0*31557600.0D0*f1in*f4sun*f4shade), r_4)
+      ! f4sun + f4shade as a sum made by B.Cardeli on 20/03/26 
+      ! based in De Pury & Farqahar (1997) Eq. 24 
+
       if(ph .lt. 0.0) ph = 0.0
    end function gross_ph
 
@@ -296,7 +299,7 @@ contains
    ! =============================================================
    ! =============================================================
 
-   function canopy_resistence(vpd_in,f1_in,g1,ca) result(rc2_in)
+   function canopy_resistence(vpd_in,f1_in,g1,ca,temp) result(rc2_in)
       ! return stomatal resistence based on Medlyn et al. 2011a
       ! Coded by Helena Alves do Prado
       use global_par, only: rcmin, rcmax
@@ -310,12 +313,24 @@ contains
       real(r_8),intent(in) :: g1       ! model m (slope) (sqrt(kPa))
       real(r_8),intent(in) :: ca
       real(r_4) :: rc2_in              !Canopy resistence (sm-1)
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     !Air temperature (°C) ~ to calculate the conversion factor dinamically
+      ! +++ BC +++
 
       !     Internal
       !     --------
       real(r_8) :: gs       !Canopy conductance (molCO2 m-2 s-1)
       real(r_8) :: D1       !sqrt(kPA)
       real(r_4) :: vapour_p_d
+      ! +++ BC +++
+      real(r_8) :: conv_factor ! RT/P conversion factor (m s-1 per mol m-2 s-1)
+      ! +++ BC +++
+
+      ! +++ BC +++
+      ! Physical constants (to calculate the conversion factor)
+      real(r_8), parameter :: R_gas = 8.314D0    ! J mol-1 K-1 ~ universal gas constant
+      real(r_8), parameter :: P_atm = 101325.0D0 ! Pa
+      ! +++ BC +++
 
       vapour_p_d = vpd_in
       ! Assertions
@@ -325,9 +340,17 @@ contains
       ! stop
       ! endif
 
+      ! +++ BC +++
+       ! Conversion factor mol m-2 s-1 -> m s-1 using real temperature
+      ! gs[m/s] = gs[mol/m2/s] * RT/P  (Jones 1992; von Caemmerer 2000)
+      conv_factor = R_gas * (real(temp, r_8) + 273.15D0) / P_atm
+      ! +++ BC +++
+
       D1 = sqrt(vapour_p_d)
       gs = 0.003 + 1.6D0 * (1.0D0 + (g1/D1)) * ((f1_in * 1.0e6)/ca) ! mol m-2 s-1
-      gs = gs * (1.0D0 / 44.6D0)! convrt from  mol/m²/s to m s-1
+      ! +++ BC +++
+      gs = gs * conv_factor ! convert from mol m-2 s-1 to m s-1
+      ! +++ BC +++
       rc2_in = real( 1.0D0 / gs, r_4)  !  s m-1
 
       if(rc2_in .ge. rcmax) rc2_in = rcmax
@@ -371,18 +394,41 @@ contains
  !=================================================================
  !=================================================================
 
-   function water_ue(a, g, p0, vpd) result(wue)
+   function water_ue(a, g, p0, vpd,temp) result(wue)
       use types
       !implicit none
       real(r_8),intent(in) :: a
       real(r_4),intent(in) :: g, p0, vpd
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     ! Air temperature (°C)
+      ! +++ BC +++
       ! a = assimilacao; g = resistencia; p0 = pressao atm; vpd = vpd
       real(r_4) :: wue
 
       real(r_4) :: g_in, p0_in, e_in
+      ! +++ BC +++
+      real(r_4) :: conv_factor ! RT/P_atm (m s-1 per mol m-2 s-1)
 
-      g_in = (1./g) * 40.87 ! convertendo a resistencia (s m-1) em condutancia mol m-2 s-1
-      p0_in = p0 /10. ! convertendo pressao atm (mbar/hPa) em kPa
+      ! Physical constants
+      real(r_4), parameter :: R_gas = 8.314    ! J mol-1 K-1
+      real(r_4), parameter :: P_atm = 101325.0 ! Pa - standard atmosphere for unit conversion
+      ! +++ BC +++
+
+      ! p0_in must be calculated first (used both in conv_factor context and e_in)
+      p0_in = p0 / 10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      ! +++ BC 
+      ! Conversion factor m s-1 -> mol m-2 s-1 using real temperature
+      ! This is the INVERSE of RT/P: P/(RT)
+      ! g[mol/m2/s] = g[m/s] * P/(RT)  (Jones 1992; von Caemmerer 2000)
+      ! At 25°C: P/(RT) = 101325 / (8.314 * 298.15) = 40.90 mol m-3
+      conv_factor = P_atm / (R_gas * (temp + 273.15))
+      ! +++ BC +++
+
+      g_in = (1./g) * conv_factor ! convertendo a resistencia (s m-1) em condutancia mol m-2 s-1
+      !p0_in = p0 /10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      ! Transpiration: uses real atmospheric pressure (p0_in) for vapour diffusion physics
       e_in = g_in * (vpd/p0_in) ! calculando transpiracao mol H20 m-2 s-1
 
       if(a .eq. 0 .or. e_in .eq. 0) then
@@ -396,19 +442,39 @@ contains
  !=================================================================
  !=================================================================
 
-   function transpiration(g, p0, vpd, unit) result(e)
+   function transpiration(g, p0, vpd, unit,temp) result(e)
       use types
       !implicit none
       real(r_4),intent(in) :: g, p0, vpd
       integer(i_4), intent(in) :: unit
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     ! Air temperature (°C)
+      ! +++ BC +++
       ! g = resistencia estomatica s m-1; p0 = pressao atm (mbar == hPa); vpd = vpd (kPa)
       real(r_4) :: e
 
       real(r_4) :: g_in, p0_in, e_in
+      ! +++ BC +++
+      real(r_4) :: conv_factor ! RT/P_atm (m s-1 per mol m-2 s-1)
 
-      g_in = (1./g) * 44.6 ! convertendo a resistencia (s m-1) (m s-1) em condutancia mol m-2 s-1
+      ! Physical constants
+      real(r_4), parameter :: R_gas = 8.314    ! J mol-1 K-1
+      real(r_4), parameter :: P_atm = 101325.0 ! Pa - standard atmosphere for unit conversion
+      ! +++ BC +++
+
+      ! p0_in calculated first
       p0_in = p0 / 10. ! convertendo pressao atm (mbar/hPa) em kPa
 
+      ! Conversion factor m s-1 -> mol m-2 s-1 using real temperature
+      ! This is the INVERSE of RT/P: P/(RT)
+      ! g[mol/m2/s] = g[m/s] * P/(RT)  (Jones 1992; von Caemmerer 2000)
+      ! At 25°C: P/(RT) = 101325 / (8.314 * 298.15) = 40.90 mol m-3
+      conv_factor = P_atm / (R_gas * (temp + 273.15))
+
+      g_in = (1./g) * conv_factor ! convertendo a resistencia (s m-1) (m s-1) em condutancia mol m-2 s-1
+      !p0_in = p0 / 10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      ! Transpiration: uses real atmospheric pressure (p0_in) for vapour diffusion physics
       e_in = g_in * (vpd/p0_in) ! calculando transpiracao mol H20 m-2 s-1
 
       if(unit .eq. 1) then
