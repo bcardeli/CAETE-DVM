@@ -146,8 +146,8 @@ if not sombrero:
         zone = 'c'
 
 if zone == 'c':
-    y0, y1 = 183, 186 #175, 186
-    x0, x1 = 235, 238 #235, 241
+    y0, y1 = 175, 176 #175, 186
+    x0, x1 = 235, 236 #235, 241
     folder = "central"
 
 elif zone == 's':
@@ -340,13 +340,14 @@ def apply_spin(grid:grd)->grd:
 
 def apply_fun(grid:grd)->grd:
     grid.run_caete('19790101', '19891231', spinup=5, 
-                   fix_co2='1980', save=False, nutri_cycle=False)
+                   fix_co2='1980', save=False, nutri_cycle=False, 
+                   light_competition=False) # SEM competição no spin-up 1
     return grid
 
  
 def apply_fun0(grid:grd)->grd:
     grid.run_caete('19790101', '19891231', spinup=35,
-                   fix_co2='1980', save=False)
+                   fix_co2='1980', save=False)   # COM competição no spin-up 2
     return grid
 
 

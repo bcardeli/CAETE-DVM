@@ -56,10 +56,6 @@ module photo
         ttype                  ,&
         pls_allometry          ,& ! (s) Plant life strategies allometry (height, diameter, crown area) functions
         se_module                 ! (s) Subroutine to calculate SE (regulation)      
-      !   density_ind            ,& ! (s) logic to density number (randon - to the inicialization)
-      !   foliage_projective     ,&
-      !   mort_occupation        ,& ! (s) logic to mortality relates to occupation/FPC
-      !   mort_greff
 
 contains
 
@@ -112,42 +108,44 @@ contains
    !=================================================================
    !=================================================================
 
-   function gross_ph(f1,cleaf,sla_var) result(ph)
+   function gross_ph(f1,cleaf,sla) result(ph)
       ! Returns gross photosynthesis rate (kgC m-2 y-1) (GPP)
       use types, only: r_4, r_8
       !implicit none
 
       real(r_8),intent(in) :: f1    !molCO2 m-2 s-1
       real(r_8),intent(in) :: cleaf !kgC m-2
-      real(r_8),intent(in) :: sla_var   !m2 gC-1
+      real(r_8),intent(in) :: sla   !m2 gC-1
       real(r_4) :: ph
 
       real(r_8) :: f4sun, f1in
       real(r_8) :: f4shade
 
       f1in = f1
-      f4sun = f_four(1,cleaf,sla_var)
-      f4shade = f_four(2,cleaf,sla_var)
+      f4sun = f_four(1,cleaf,sla)
+      f4shade = f_four(2,cleaf,sla)
 
-      ph = real((0.012D0*31557600.0D0*f1in*f4sun*f4shade), r_4)
+      ph = real((0.012D0*31557600.0D0*f1in*(f4sun+f4shade)), r_4)
+      ! f4sun + f4shade as a sum made by B.Cardeli on 20/03/26
+      ! based in De Pury & Farqahar (1997) Eq. 24
       if(ph .lt. 0.0) ph = 0.0
    end function gross_ph
 
    !=================================================================
    !=================================================================
 
-   function leaf_area_index(cleaf, sla_var) result(lai)
+   function leaf_area_index(cleaf, sla) result(lai)
       ! Returns Leaf Area Index m2 m-2
 
       use types, only: r_8
       !implicit none
 
       real(r_8),intent(in) :: cleaf !kgC m-2
-      real(r_8),intent(in) :: sla_var   !m2 gC-1
+      real(r_8),intent(in) :: sla   !m2 gC-1
       real(r_8) :: lai
 
 
-      lai  = cleaf * 1.0D3 * sla_var  ! Converts cleaf from (KgC m-2) to (gCm-2)
+      lai  = cleaf * 1.0D3 * sla  ! Converts cleaf from (KgC m-2) to (gCm-2)
       if(lai .lt. 0.0D0) lai = 0.0D0
 
    end function leaf_area_index
@@ -196,7 +194,7 @@ contains
    !=================================================================
    !=================================================================
 
-   function f_four(fs,cleaf,sla_var) result(lai_ss)
+   function f_four(fs,cleaf,sla) result(lai_ss)
       ! Function used to scale LAI from leaf to canopy level (2 layers)
       use types, only: i_4, r_4, r_8
       use photo_par, only: p26, p27
@@ -210,14 +208,14 @@ contains
       ! Any other number returns sunlai (not scaled to canopy)
 
       real(r_8),intent(in) :: cleaf ! carbon in leaf (kg m-2)
-      real(r_8),intent(in) :: sla_var   ! specific leaf area (m2 gC-1)
+      real(r_8),intent(in) :: sla   ! specific leaf area (m2 gC-1)
       real(r_8) :: lai_ss           ! leaf area index (m2 m-2)
 
       real(r_8) :: lai
       real(r_8) :: sunlai
       real(r_8) :: shadelai
 
-      lai = leaf_area_index(cleaf, sla_var)
+      lai = leaf_area_index(cleaf, sla)
 
       sunlai = (1.0D0-(dexp(-p26*lai)))/p26
       shadelai = lai - sunlai
@@ -302,7 +300,7 @@ contains
    ! =============================================================
    ! =============================================================
 
-   function canopy_resistence(vpd_in,f1_in,g1,ca) result(rc2_in)
+   function canopy_resistence(vpd_in,f1_in,g1,ca,temp) result(rc2_in)
       ! return stomatal resistence based on Medlyn et al. 2011a
       ! Coded by Helena Alves do Prado
       use global_par, only: rcmin, rcmax
@@ -316,24 +314,42 @@ contains
       real(r_8),intent(in) :: g1       ! model m (slope) (sqrt(kPa))
       real(r_8),intent(in) :: ca
       real(r_4) :: rc2_in              !Canopy resistence (sm-1)
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     !Air temperature (°C) ~ to calculate the conversion factor dinamically
+      ! +++ BC +++
 
       !     Internal
       !     --------
       real(r_8) :: gs       !Canopy conductance (molCO2 m-2 s-1)
       real(r_8) :: D1       !sqrt(kPA)
       real(r_4) :: vapour_p_d
+      ! +++ BC +++
+      real(r_8) :: conv_factor ! RT/P conversion factor (m s-1 per mol m-2 s-1)
+      ! +++ BC +++
+
+      ! +++ BC +++
+      ! Physical constants (to calculate the conversion factor)
+      real(r_8), parameter :: R_gas = 8.314D0    ! J mol-1 K-1 ~ universal gas constant
+      real(r_8), parameter :: P_atm = 101325.0D0 ! Pa
+      ! +++ BC +++
 
       vapour_p_d = vpd_in
       ! Assertions
       if(vpd_in .le. 0.0) vapour_p_d = 0.001
       if(vpd_in .gt. 4.0) vapour_p_d = 4.0
-      ! print *, 'vpd going mad in canopy_resistence'
-      ! stop
-      ! endif
 
+      ! +++ BC +++
+      ! Conversion factor mol m-2 s-1 -> m s-1 using real temperature (input)
+      ! gs[m/s] = gs[mol/m2/s] * RT/P  (Jones 1992; von Caemmerer 2000)
+      conv_factor = R_gas * (real(temp, r_8) + 273.15D0) / P_atm
+      ! +++ BC +++
+   
       D1 = sqrt(vapour_p_d)
       gs = 0.003 + 1.6D0 * (1.0D0 + (g1/D1)) * ((f1_in * 1.0e6)/ca) ! mol m-2 s-1
-      gs = gs * (0.02520) !(1.0D0 / 44.6D0)! convrt from  mol/m²/s to m s-1
+      ! +++ BC +++
+      gs = gs * conv_factor ! convert from mol m-2 s-1 to m s-1
+      ! +++ BC +++
+      !gs = gs * (0.02520) !(1.0D0 / 44.6D0)! convrt from  mol/m²/s to m s-1
       rc2_in = real( 1.0D0 / gs, r_4)  !  s m-1
 
       if(rc2_in .ge. rcmax) rc2_in = rcmax
@@ -377,18 +393,42 @@ contains
  !=================================================================
  !=================================================================
 
-   function water_ue(a, g, p0, vpd) result(wue)
+   function water_ue(a, g, p0, vpd,temp) result(wue)
       use types
       !implicit none
       real(r_8),intent(in) :: a
       real(r_4),intent(in) :: g, p0, vpd
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     ! Air temperature (°C)
+      ! +++ BC +++
       ! a = assimilacao; g = resistencia; p0 = pressao atm; vpd = vpd
       real(r_4) :: wue
 
       real(r_4) :: g_in, p0_in, e_in
 
-      g_in = (1./g) * 40.87 ! convertendo a resistencia (s m-1) em condutancia mol m-2 s-1
-      p0_in = p0 /10. ! convertendo pressao atm (mbar/hPa) em kPa
+      ! +++ BC +++
+      real(r_4) :: conv_factor ! RT/P_atm (m s-1 per mol m-2 s-1)
+
+      ! Physical constants
+      real(r_4), parameter :: R_gas = 8.314    ! J mol-1 K-1
+      real(r_4), parameter :: P_atm = 101325.0 ! Pa - standard atmosphere for unit conversion
+      ! +++ BC +++
+
+      ! p0_in must be calculated first (used both in conv_factor context and e_in)
+      p0_in = p0 / 10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      ! +++ BC 
+      ! Conversion factor m s-1 -> mol m-2 s-1 using real temperature
+      ! This is the INVERSE of RT/P: P/(RT)
+      ! g[mol/m2/s] = g[m/s] * P/(RT)  (Jones 1992; von Caemmerer 2000)
+      ! At 25°C: P/(RT) = 101325 / (8.314 * 298.15) = 40.90 mol m-3
+      conv_factor = P_atm / (R_gas * (temp + 273.15))
+      ! +++ BC +++
+
+      g_in = (1./g) * conv_factor ! convertendo a resistencia (s m-1) em condutancia mol m-2 s-1
+      !p0_in = p0 /10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      !g_in = (1./g) * 40.87 ! convertendo a resistencia (s m-1) em condutancia mol m-2 s-1
       e_in = g_in * (vpd/p0_in) ! calculando transpiracao mol H20 m-2 s-1
 
       if(a .eq. 0 .or. e_in .eq. 0) then
@@ -402,18 +442,39 @@ contains
  !=================================================================
  !=================================================================
 
-   function transpiration(g, p0, vpd, unit) result(e)
+   function transpiration(g, p0, vpd, unit,temp) result(e)
       use types
       !implicit none
       real(r_4),intent(in) :: g, p0, vpd
       integer(i_4), intent(in) :: unit
+      ! +++ BC +++
+      real(r_4),intent(in) :: temp     ! Air temperature (°C)
+      ! +++ BC +++
       ! g = resistencia estomatica s m-1; p0 = pressao atm (mbar == hPa); vpd = vpd (kPa)
       real(r_4) :: e
 
       real(r_4) :: g_in, p0_in, e_in
 
-      g_in = (1./g) * 44.6 ! convertendo a resistencia (s m-1) (m s-1) em condutancia mol m-2 s-1
+      ! +++ BC +++
+      real(r_4) :: conv_factor ! RT/P_atm (m s-1 per mol m-2 s-1)
+
+      ! Physical constants
+      real(r_4), parameter :: R_gas = 8.314    ! J mol-1 K-1
+      real(r_4), parameter :: P_atm = 101325.0 ! Pa - standard atmosphere for unit conversion
+      ! +++ BC +++
+
+      ! p0_in calculated first
       p0_in = p0 / 10. ! convertendo pressao atm (mbar/hPa) em kPa
+
+      ! Conversion factor m s-1 -> mol m-2 s-1 using real temperature
+      ! This is the INVERSE of RT/P: P/(RT)
+      ! g[mol/m2/s] = g[m/s] * P/(RT)  (Jones 1992; von Caemmerer 2000)
+      ! At 25°C: P/(RT) = 101325 / (8.314 * 298.15) = 40.90 mol m-3
+      conv_factor = P_atm / (R_gas * (temp + 273.15))
+
+      g_in = (1./g) * conv_factor ! convertendo a resistencia (s m-1) (m s-1) em condutancia mol m-2 s-1
+
+      !g_in = (1./g) * 44.6 ! convertendo a resistencia (s m-1) (m s-1) em condutancia mol m-2 s-1
 
       e_in = g_in * (vpd/p0_in) ! calculando transpiracao mol H20 m-2 s-1
 
@@ -506,11 +567,11 @@ contains
 
    !=================================================================
    !=================================================================
-   function vcmax_a(npa, ppa, sla_var) result(vcmaxd)
+   function vcmax_a(npa, ppa, sla) result(vcmaxd)
       ! TESTING eq.1 / Fig 5 Domingues et al. 2010
       real(r_8), intent(in) :: npa       ! N mg g-1
       real(r_8), intent(in) :: ppa       ! P mg g-1
-      real(r_8), intent(in) :: sla_var       ! m2(Leaf) g(C)-1
+      real(r_8), intent(in) :: sla      ! m2(Leaf) g(C)-1
 
       
       real(r_8) :: vcmaxd !mol m⁻² s⁻¹
@@ -525,7 +586,7 @@ contains
       ndw = npa
       pdw = ppa
 
-      lma = sla_var ** (-1) ! g/m2
+      lma = sla ** (-1) ! g/m2
 
       ! CALCULATE VCMAX
       nlim = alpha_n + nu_n * dlog10(ndw)  ! + (sigma_n * dlog10(sla))
@@ -538,10 +599,10 @@ contains
 
    !=================================================================
    !=================================================================
-   function vcmax_a1(npa, ppa, sla_var) result(vcmaxd)
+   function vcmax_a1(npa, ppa, sla) result(vcmaxd)
       ! TESTING
       real(r_8), intent(in) :: npa   ! N g m-2
-      real(r_8), intent(in) :: ppa,sla_var   ! P g m-2 / m2 g-1
+      real(r_8), intent(in) :: ppa,sla   ! P g m-2 / m2 g-1
 
       
       real(r_8) :: vcmaxd !mol m⁻² s⁻¹
@@ -561,11 +622,11 @@ contains
       ndw = npa
       pdw = ppa
 
-      lma = sla_var ** (-1) ! g/m2
+      lma = sla ** (-1) ! g/m2
 
       ! CALCULATE VCMAX
-      nlim = alpha_n + nu_n * dlog10(ndw)  + (sigma_n * dlog10(sla_var))
-      plim = alpha_p + nu_p * dlog10(pdw)  + (sigma_p * dlog10(sla_var))
+      nlim = alpha_n + nu_n * dlog10(ndw)  + (sigma_n * dlog10(sla))
+      plim = alpha_p + nu_p * dlog10(pdw)  + (sigma_p * dlog10(sla))
       
       vcmax_dw = min(10**nlim, 10**plim) ! log10(vcmax_dw) in µmol g⁻¹ s⁻¹
       vcmaxd = vcmax_dw * lma
@@ -595,8 +656,16 @@ contains
    !=================================================================
    !=================================================================
 
-   subroutine photosynthesis_rate(c_atm, temp,p0,ipar,sla_var,c4,nbio,pbio,&
-        & cleaf,cawood1,height1,max_height,f1ab,vm, amax)
+   ! [LIGHT COMPETITION SCHEME] ~ B. Cardeli (2026-03-25)
+   ! Logic handled in "budget.f90". "Photosynthesis rate" inputs:
+   ! - linc_layer: incident radiation per vertical layer
+   ! - nl_shared: layer count (from max_height)
+   ! - lsize_shared: (layer thickness/size in meters)
+   ! Simplified LIGHT COMPETITION block: Subroutine now maps PFT to its 
+   ! respective layer and fetches linc_layer values directly.
+
+   subroutine photosynthesis_rate(c_atm, temp,p0,ipar,sla,c4,nbio,pbio,&
+        & cleaf,cawood1,height1,linc_layer,nl_shared,lsize_shared,f1ab,vm, amax)
 
       ! f1ab SCALAR returns instantaneous photosynthesis rate at leaf level (molCO2/m2/s)
       ! vm SCALAR Returns maximum carboxilation Rate (Vcmax) (molCO2/m2/s)
@@ -613,11 +682,14 @@ contains
       ! logical(l_1),intent(in) :: ll ! is light limited?
       integer(i_4),intent(in) :: c4 ! is C4 Photosynthesis pathway?
       ! real(r_8),intent(in) :: leaf_turnover   ! y
-      real(r_8),intent(in) :: sla_var
+      real(r_8),intent(in) :: sla
       real(r_8),intent(in) :: height1
-      real(r_8),intent(in) :: max_height
       real(r_8),intent(in) :: cawood1
       real(r_8),intent(in) :: cleaf
+      ! [LIGHT COMP] New inputs from budget.f90
+      integer(i_4), intent(in) :: nl_shared
+      real(r_8),    intent(in) :: lsize_shared
+      real(r_8), dimension(nl_shared), intent(in) :: linc_layer
 
       ! O
       real(r_8),intent(out) :: f1ab ! Gross CO2 Assimilation Rate mol m-2 s-1
@@ -654,30 +726,8 @@ contains
       ! real(r_8) :: nmgg, pmgg
       ! real(r_8) :: coeffa, coeffb
 
-      !Internal Variables [LIGHT COMPETITION] ---------------------------------------
-      integer(i_4) :: n
-      real(r_8) :: index_leaf
-      integer(i_4) :: num_layer !number of layers according to max height in each grid-cel
-      real(r_8) :: layer_size !size of each layer in m. in each grid-cell
-      integer(i_4) :: last_with_pls !last layer contains PLS
-      real(r_8) :: llight
-      !real(r_8) :: f1ab_layer
-
-      type :: layer_array
-         real(r_8) :: sum_height
-         integer(i_4) :: num_height !!corresponds to the number of layers according max height of PLS.
-         real(r_8) :: mean_height !Mean of heights in a layer
-         real(r_8) :: layer_height !Height of respective layer of the floor (in m.)
-         real(r_8) :: sum_lai !LAI sum in a layer
-         real(r_8) :: mean_lai !mean LAI in a layer
-         real(r_8) :: beers_law !layer's light extinction
-         real(r_8) :: linc !layer's light incidence
-         real(r_8) :: lused !layer's light used (relates to light extinction - Beers Law)
-         real(r_8) :: lavai !light availability
-         integer(i_4) :: layer_id !identify layers
-      end type layer_array
-
-      type(layer_array), allocatable :: layer(:)
+      ! [LIGHT COMP]
+      integer(i_4) :: n  ! Layer localization counter/index
 
       nbio2 = nbio !nrubisco(leaf_turnover, nbio)
       pbio2 = pbio !nrubisco(leaf_turnover, pbio)
@@ -705,7 +755,7 @@ contains
       ! vm_nutri = coeffa + (coeffb * dlog10(nbio2))
 
       ! vm = vcmax_a(nbio2, pbio2, spec_leaf_area(leaf_turnover)) ! 10**vm_nutri * 1D-6  !
-      vm = vcmax_a(nbio2, pbio2, sla_var) ! 10**vm_nutri * 1D-6  ! 
+      vm = vcmax_a(nbio2, pbio2, sla) ! 10**vm_nutri * 1D-6  ! 
       if(vm + 1 .eq. vm) vm = 1.0D-5 ! If Vc max is inf give it a low value
       if(vm .gt. p25) vm = p25
 
@@ -715,140 +765,46 @@ contains
       if(vm_in .gt. p25) vm_in = p25
 
 
-      !========================= LIGHT COMPETITION =============================!
-      !         Code by: Bárbara Cardeli, Bianca Rius and Caio Fascina          !
-      !                               START                                     !
-
-      index_leaf = leaf_area_index(cleaf, sla_var)
-
-      ! =================================================
-      !       LIGHT COMPETITION DYNAMIC. [LAYERS]
-      ! =================================================
-
-      num_layer = 0
-      layer_size = 0.0D0
-
-      num_layer = nint(max_height/5)
-      ! print*, 'num layer is', num_layer, 'max_height=', max_height
-
-      allocate(layer(1:num_layer))
-
-      layer_size = max_height/num_layer !length from one layer to another
-      ! print*, 'layer_size', layer_size
-     
-      last_with_pls=num_layer
-      !print*, 'LAST', last_with_pls
-
-      do n = 1,num_layer
-         layer(n)%layer_height = 0.0D0
-         layer(n)%layer_height=layer_size*n
-      end do
-
-      do n = 1, num_layer
-         !Inicialize variables relates layers dynamics
-         layer(n)%num_height = 0.0D0
-         layer(n)%sum_height = 0.0D0
-         layer(n)%mean_height = 0.0D0
-         layer(n)%sum_lai = 0.0D0 
-      enddo
-
-      do n = 1, num_layer
-
-         if ((layer(n)%layer_height .ge. height1).and.&
-         &(layer(n-1)%layer_height .lt. height1)) then     
-            layer(n)%sum_height=&
-            &layer(n)%sum_height + height1
-            layer(n)%num_height=&
-            &layer(n)%num_height+1
-            layer(n)%sum_lai=&    
-            &layer(n)%sum_lai + index_leaf
-         end if
-
-         layer(n)%mean_height = layer(n)%sum_height/&
-         &layer(n)%num_height
-         if(layer(n)%sum_height .eq. 0.0D0) then
-            layer(n)%mean_height = 0.0D0
-         endif
-         layer(n)%mean_lai=layer(n)%sum_lai/&
-         &layer(n)%num_height
-         if(layer(n)%sum_lai .eq. 0.0D0) then
-            layer(n)%mean_lai = 0.0D0
-         end if
-      end do
-
-      ! ======================================================
-      !       LIGHT COMPETITION DYNAMIC. [EXTINCTION LIGHT]
-      ! ======================================================
-
-      !! INICIALIZE VARIABLES !!
-      do n = 1, num_layer
-         layer(n)%linc = 0.0D0
-         layer(n)%lavai = 0.0D0
-         layer(n)%lused = 0.0D0
-      enddo
-         
-      !=================== Beer's Law ========================
-      do n = num_layer,1,-1
-         layer(n)%beers_law = ipar*&
-         &(1-exp(-0.5*layer(n)%mean_lai))
-      enddo
-      !=======================================================
-
-      ! ======================================================
-      !       LIGHT COMPETITION DYNAMIC. [LIGHTS DYNAMIC]
-      ! ======================================================
-
-      do n = num_layer,1,-1
-         if(n.eq.num_layer) then
-            layer(n)%linc = ipar
-         else
-            if(layer(n)%mean_height.gt.0.0D0) then
-               layer(n)%linc = layer(last_with_pls)%lavai
-               last_with_pls=n
+      ! =====================================================================
+      !          ++++++++++++    LIGHT COMPETITION     ++++++++++++
+      !                        --- new structure ---
+      !        
+      ! The previous block reconstructed the canopy for each PLS individually,
+      ! leading to incorrect extinction (accounting for only one PLS's LAI at a time).
+      ! Now, the subroutine receives linc_layer already calculated with the 
+      ! aggregated LAI of ALL living PLS, and simply locates the current PLS's 
+      ! layer to read the correct incident light.
+      ! =====================================================================
+ 
+      ! Grass (awood = 0) receives 80% of IPAR
+      if (cawood1 .eq. 0.0D0) then
+         aux_ipar = ipar - (ipar * 0.20)
+ 
+      else
+         ! Locates the PLS's layer and reads linc_layer
+         ! [LIGHT COMP] aux_ipar = linc of the specific layer where the PLS is located
+         ! (Light reaching that layer after extinction by the canopy layers above,
+         !  pre-calculated in the budget.f90 loop using the full canopy profile)
+         aux_ipar = real(ipar, r_8) ! default: topo do dossel
+         do n = 1, nl_shared
+            if (n .eq. 1) then
+               if (lsize_shared * real(n, r_8) .ge. height1) then
+                  aux_ipar = linc_layer(n)
+                  exit 
+               end if
             else
-               continue
-            endif
-         endif
-         layer(n)%lused = layer(n)%linc*(1-exp(-0.5*layer(n)%mean_lai))
-         layer(n)%lavai = layer(n)%linc - layer(n)%lused
-      enddo
-
-      ! ======================================================
-      !    LIGHT COMPET. PHOTOSYNTHESIS PUNISHMENT 
-      ! ======================================================
-
-      ! Identifying the layers and allocate each PLS to punishment photosyntesis.
-
-      !! INICIALIZE VARIABLES !!
-      do n = 1, num_layer
-         layer(n)%layer_id = 0.0D0
-         llight = 0.0D0
-      enddo
-
-      do n = num_layer, 1, -1
-         if (cawood1.eq.0.0D0) then
-            aux_ipar = ipar
-            llight = ipar
-         else
-            if (n.eq.num_layer) then 
-               layer(n)%layer_id = num_layer
-               if (height1.le.max_height.and.height1.gt.layer(n-1)%layer_height) then 
-                  llight = ipar
-                  aux_ipar = ipar
-                  !print*, n, 'LL TOP=', llight, 'aux_ipar', aux_ipar,'ipar', ipar
-               endif
-            else
-               layer(n)%layer_id = layer(n+1)%layer_id-1  
-               if (height1.le.layer(n)%layer_height.and.height1.gt.layer(n-1)%layer_height) then
-                  llight = (layer(n)%lavai/ipar)
-                  aux_ipar = ipar - (ipar*llight) !limitation in % of IPAR total. 
-                  !print*, n, 'LL ABOVE % =', llight, 'aux_ipar', aux_ipar !, 'ipar', ipar
-               endif
-            endif 
-         endif  
-      enddo
-
-      !============================  END  ========================================================
+               if ((lsize_shared * real(n, r_8) .ge. height1) .and. &
+                   (lsize_shared * real(n-1, r_8) .lt. height1)) then
+                  aux_ipar = linc_layer(n)
+                  exit 
+               end if
+            end if
+         end do
+      end if
+ 
+      ! =====================================================================
+      ! [LIGHT COMP] +++ END +++
+      ! =====================================================================
 
       if(c4 .eq. 0) then
          !====================-C3 PHOTOSYNTHESIS-===============================
@@ -875,7 +831,7 @@ contains
          ! else
          !    aux_ipar = ipar - (ipar * 0.20)
          ! endif
-         
+
          jl = p4*(1.0-p5)*aux_ipar*((ci-mgama)/(ci+(p6*mgama)))
          amax = jl
 
@@ -953,7 +909,6 @@ contains
          j2 = (-b2+(sqrt(delta2)))/(2.0*a2)
          f1a = dmin1(j1,j2)
 
-
          f1ab = f1a
          if(f1ab .lt. 0.0D0) f1ab = 0.0D0
          return
@@ -1019,12 +974,12 @@ contains
       nppot2 = nppot !/real(npls,kind=r_4)
       do k=1,ntl
          if (k.eq.1) then
-            cleafi_aux (k) =  aleaf * nppot2
+            cleafi_aux (k) = aleaf * nppot2
             cawoodi_aux(k) = aawood * nppot2
             cfrooti_aux(k) = afroot * nppot2
          else
             aux_leaf = cleafi_aux(k-1) + (aleaf * nppot2)
-            aux_wood = cawoodi_aux(k-1) + (aleaf * nppot2)
+            aux_wood = cawoodi_aux(k-1) + (aawood * nppot2)
             aux_root = cfrooti_aux(k-1) + (afroot * nppot2)
 
             out_leaf = aux_leaf - (cleafi_aux(k-1) / tleaf)
@@ -1135,7 +1090,7 @@ contains
 
             else
                aux_leaf = cleafi_aux(k-1) + (aleaf(i6) * nppot2)
-               aux_wood = cawoodi_aux(k-1) + (aleaf(i6) * nppot2)
+               aux_wood = cawoodi_aux(k-1) + (aawood(i6) * nppot2)
                aux_root = cfrooti_aux(k-1) + (afroot(i6) * nppot2)
 
                out_leaf = aux_leaf - (cleafi_aux(k-1) / tleaf(i6))
@@ -1302,11 +1257,11 @@ contains
       if(a2 .le. 0.0D0) a2 = 0.0D0
       if(a3 .le. 0.0D0) a3 = 0.0D0
 
-      rgl64 = 1.25D0 * a1
-      rgf64 = 1.25D0 * a2
+      rgl64 = 0.25D0 * a1
+      rgf64 = 0.25D0 * a2
 
       if(aawood_rg .gt. 0.0D0) then
-         rgs64 = 1.25D0 * a3
+         rgs64 = 0.25D0 * a3
       else
          rgs64 = 0.0D0
       endif
@@ -1490,7 +1445,7 @@ contains
       
       ! ============================
       dwood = dt(18,:)
-      cawood = (cawood1/5)
+      cawood = cawood1
       crown_area_max = 30.0 !m2 !number from lplmfire code (establishment.f90)
       ! ============================
     
@@ -1508,8 +1463,8 @@ contains
             crown_area(p) = 0.0D0 !in m2.
             dwood(p) = 0.0D0
          else
-            diameter(p) = (4*(cawood(p)*1.0D3)/(dwood(p)*1.0D6)*pi*k_allom2)&
-            &**(1/(2+k_allom3))
+            diameter(p) = (4*(cawood(p)*1.0D3)/(dwood(p)*1.0D6*pi*k_allom2))&
+            &**(1.0D0/(2.0D0+k_allom3))
             height(p) = k_allom2*(diameter(p)**k_allom3)
             crown_area(p) = min(crown_area_max(p), k_allom1*(diameter(p)**krp))
          endif

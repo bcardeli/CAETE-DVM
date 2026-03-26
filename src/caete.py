@@ -778,7 +778,8 @@ class grd:
                   fix_co2=None,
                   save=True,
                   nutri_cycle=True,
-                  afex=False):
+                  afex=False,
+                  light_competition=True):
         """ start_date [str]   "yyyymmdd" Start model execution
 
             end_date   [str]   "yyyymmdd" End model execution
@@ -872,6 +873,9 @@ class grd:
                 fix_co2)) == int, "The string(\"yyyy\") for the fix_co2 argument must be an year between 1901-2016"
             co2 = find_co2(int(fix_co2))
             fix_co2_p = True
+
+            # Set light competition flag in Fortran module
+            gp.light_comp = 1 if light_competition else 0
 
         for s in range(spin):
             if ABORT:
@@ -1323,6 +1327,9 @@ class grd:
         dca = self.vp_dca
         dcf = self.vp_dcf
         uptk_costs = np.zeros(npls, order='F')
+
+        # No light competition during soil spinup
+        gp.light_comp = 0
 
         for step in range(steps.size):
             loop += 1

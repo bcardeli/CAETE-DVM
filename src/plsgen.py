@@ -60,7 +60,7 @@ def check_viability(trait_values, wood):
         trait_values: np.array(shape=(6,), dtype=f64) allocation and residence time combination (possible PLS)
         wood: bool  Is this a woody PLS?
     """
-
+    
     assert wood is not None
     lim = 0.01
     rtur = np.array(model.spinup3(lim, trait_values))
@@ -73,11 +73,10 @@ def check_viability(trait_values, wood):
             return False
         return True
 
-
 def assertion_data_size(dsize):
     """ Assertion of datasets sizes """
 
-    g2w_ratio = 0.2
+    g2w_ratio = 0.1 #0.2
     diffg = ceil(dsize * g2w_ratio)
     diffw = int(dsize - diffg)
     assert diffg + diffw == dsize
@@ -112,7 +111,7 @@ def turnover_combinations(verbose=False):
         print("Building woody allocation combinations: \n")
         aleafw = np.arange(5., 95.1, 0.0125e1, dtype=np.float64)
         arootw = np.arange(5., 95.1, 0.0125e1, dtype=np.float64)
-        awood = np.arange(5., 95.1, 0.0125e1, dtype=np.float64)
+        awood = np.arange(10., 95.1, 0.0125e1, dtype=np.float64)
 
         plsa_wood = [[a, b, c] for a in aleafw for b in awood
                      for c in arootw if (a + b + c) == 100]
@@ -237,14 +236,13 @@ def table_gen(NPLS, fpath=None):
     #                     0.083333, 2)
     #rtime_leaf = np.random.uniform(0.166, 8.3333, r_ceil)
 
-
-    rtime_leaf = np.random.uniform(2., 8.3333, r_ceil)
+    rtime_leaf = np.random.uniform(0.166,5.0, r_ceil)
     rtime_froot = np.random.uniform(0.08333, 8.3333, r_ceil)
     print("CREATE GRASSY STRATEGIES - Checking potential npp/alocation")
     while index0 < diffg:
         restime = np.zeros(shape=(3,), dtype=np.float64)
         dwood = 0.0
-        sla_var = np.random.uniform(0.009, 0.020, NPLS) #(0.009-0.040) TRY (Poorter & Bongers, 2006; Asner et al., 2011; Kattge et al., 2011)
+        sla_var = np.random.uniform(0.001, 0.006, NPLS) #(0.009-0.040) TRY (Poorter & Bongers, 2006; Asner et al., 2011; Kattge et al., 2011)
         allocatio = plsa_grass[np.random.randint(0, plsa_grass.shape[0])]
         restime[0] = rtime_leaf[np.random.randint(0, r_ceil)]
         restime[1] = 0.0
@@ -262,11 +260,12 @@ def table_gen(NPLS, fpath=None):
     index1 = 0
     # rtime_wood = vec_ranging(np.random.beta(
     # 2, 4, r_ceil), 1.0, 150)
-    rtime_wood = np.random.uniform(0.20, 100.0, r_ceil)
+    rtime_wood = np.random.uniform(0.2, 50.0, r_ceil)
     while index1 < diffw:
         restime = np.zeros(shape=(3,), dtype=np.float64)
-        dwood = np.random.uniform(0.5, 0.7, NPLS) # [g/cm3]; Global Wood Density Database (Zanne et al., 2009)
-        sla_var = np.random.uniform(0.009, 0.020, NPLS) #(0.009-0.040) [m2/g]; TRY (Poorter & Bongers, 2006; Asner et al., 2011; Kattge et al., 2011)
+        dwood = np.random.uniform(0.5, 0.9, NPLS) # [g/cm3]; Global Wood Density Database (Zanne et al., 2009)
+        #
+        sla_var = np.random.uniform(0.001, 0.006, NPLS) #m2/gC; TRY (Poorter & Bongers, 2006; Asner et al., 2011; Kattge et al., 2011)
         allocatio = plsa_wood[np.random.randint(0, plsa_wood.shape[0])]
         restime[0] = rtime_leaf[np.random.randint(0, r_ceil)]
         restime[1] = rtime_wood[np.random.randint(0, r_ceil)]
@@ -287,7 +286,7 @@ def table_gen(NPLS, fpath=None):
     # # # COMBINATIONS
     # # # Random samples from  distributions (g1, tleaf ...)
     # # # Random variables
-    g1 = np.random.uniform(10.0, 19.0, NPLS)
+    g1 = np.random.uniform(0.1, 19.0, NPLS)
     # g1 = vec_ranging(np.random.beta(1.2, 2, NPLS), 1.0, 15.0) # dimensionles
     # # vcmax = np.random.uniform(3e-5, 100e-5,N) # molCO2 m-2 s-1
     resorption = np.random.uniform(0.2, 0.7, NPLS)

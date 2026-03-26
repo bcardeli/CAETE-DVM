@@ -35,7 +35,7 @@ contains
 
 
       use types
-      use global_par, only: ntraits, npls
+      use global_par, only: ntraits, npls, light_comp
       use alloc
       use productivity
       use omp_lib
@@ -125,6 +125,7 @@ contains
       real(r_4) :: soil_temp
       real(r_4) :: emax
       real(r_8) :: w                               !Daily soil moisture storage (mm)
+      real(r_8), parameter :: gap_fraction = 0.15D0 ! 15% da luz vaza pelas clareiras
 
       real(r_8),dimension(:),allocatable :: ocp_coeffs
 
@@ -171,13 +172,25 @@ contains
       real(r_8),dimension(:), allocatable :: co2_abs_se
       ! real(r_8),dimension(:), allocatable :: fpc_grid_int
 
-      real(r_8), dimension(npls) :: awood_aux, nleaf, nwood, nroot, uptk_costs, pdia_aux, dwood_aux, sla_aux
+      real(r_8), dimension(npls) :: awood_aux, nleaf, nwood, nroot, uptk_costs, pdia_aux, dwood_aux
       real(r_8), dimension(3,npls) :: sto_budg
       real(r_8) :: soil_sat, ar_aux
       real(r_8), dimension(:), allocatable :: idx_grasses, idx_pdia
       real(r_8), dimension(npls) :: diameter_aux, crown_aux, height_aux
       real(r_8), dimension(npls) :: delta_biomass
       real(r_8) :: max_height
+
+      ! [LIGHT COMP] Novas variaveis para o pre-loop de competicao por luz.
+      ! O dossel compartilhado e construido UMA VEZ antes do loop paralelo,
+      ! garantindo que todas as PLS competem pelo mesmo perfil de extincao.
+      integer(i_4) :: nl_shared      ! numero de camadas do dossel compartilhado
+      integer(i_4) :: n_pre, p_pre   ! contadores do pre-loop
+      real(r_8)    :: lsize_shared   ! tamanho de cada camada (m)
+      real(r_8)    :: idx_pre        ! LAI de uma PLS no pre-loop
+      real(r_8)    :: lused_pre      ! luz absorvida por camada no pre-loop
+      real(r_8), allocatable :: lai_layer(:)   ! LAI agregado de todas as PLS por camada
+      real(r_8), allocatable :: linc_layer(:)  ! luz incidente em cada camada
+      real(r_8), allocatable :: lavai_layer(:) ! luz disponivel saindo de cada camada
       
       
       
@@ -191,7 +204,7 @@ contains
          awood_aux(i) = dt(7,i)
          pdia_aux(i) = dt(17,i)
          dwood_aux(i) = dt(18,i)
-         sla_aux(i) = dt(19,i)
+         !sla_aux(i) = dt(19,i)
          cl1_pft(i) = cl1_in(i)
          ca1_pft(i) = ca1_in(i)
          cf1_pft(i) = cf1_in(i)
@@ -297,6 +310,119 @@ contains
       emax = evpot2(p0,temp,rh,available_energy(temp))
       soil_temp = ts
 
+      ! ====================================================================
+      ! [LIGHT COMP] PRE-LOOP: Shared canopy construction (sequential)
+      ! Aggregates LAI from ALL living PLS into their respective layers and
+      ! propagates light top-down ONCE. The result (linc_layer) is passed
+      ! to each PLS in the parallel loop, ensuring realistic light competition.
+      ! Logical Reference: Beer-Lambert Law applied to the aggregate canopy.
+      ! ====================================================================
+
+      nl_shared    = max(1, nint(max_height / 5.0D0))
+      lsize_shared = max_height / real(nl_shared, r_8)
+
+      if (max_height .le. 0.0D0) then
+         lsize_shared = 5.0D0  ! valor padrão seguro
+         nl_shared    = 1
+      end if
+ 
+      allocate(lai_layer(nl_shared))
+      allocate(linc_layer(nl_shared))
+      allocate(lavai_layer(nl_shared))
+      lai_layer(:)   = 0.0D0
+      linc_layer(:)  = 0.0D0
+      lavai_layer(:) = 0.0D0
+ 
+      ! Step 1: Accumulate LAI from all living PLS into their respective layers.
+      ! Grasses (cawood = 0, height = 0) are excluded from the pre-loop:
+      ! They receive 80% of total IPAR directly in photosynthesis_rate (funcs.f90) and 
+      ! do not compete within the canopy layers. Including them would 
+      ! lead to incorrect LAI accumulation in Layer 1.
+
+      do p_pre = 1, nlen
+         ri = lp(p_pre)
+ 
+         ! Pula gramineas — sem madeira nao ocupam camadas do dossel
+         if (ca1_pft(ri) .le. 0.0D0) cycle
+ 
+         ! [LIGHT COMP] LAI weighted by the actual PLS occupancy within the grid.
+         ! leaf_area_index returns LAI as if the PLS occupied an entire 1 m2.
+         ! Multiplying by ocpavg(ri) scales this to its actual fractional occupancy,
+         ! ensuring the shared canopy reflects each PLS's proportional contribution.
+         ! (OBS: Dominant PLS contribute more to light extinction).
+
+         idx_pre = leaf_area_index(cl1_pft(ri), spec_leaf_area(dt(3,ri))) * ocpavg(ri)
+         if (idx_pre .lt. 0.0D0) idx_pre = 0.0D0
+         ! Aloca o LAI na camada correta
+         do n_pre = 1, nl_shared
+            if (n_pre .eq. 1) then
+               if (lsize_shared * real(n_pre, r_8) .ge. height_aux(ri)) then
+                  lai_layer(n_pre) = lai_layer(n_pre) + idx_pre
+                  exit  ! [FIX] Exit após PLS ser alocada na camada correta --
+                        ! sem exit a PLS seria alocada em multiplas camadas  
+               end if
+            else
+               if ((lsize_shared * real(n_pre, r_8) .ge. height_aux(ri)) .and. &
+                   (lsize_shared * real(n_pre-1, r_8) .lt. height_aux(ri))) then
+                  lai_layer(n_pre) = lai_layer(n_pre) + idx_pre
+                  exit  
+               end if
+            end if
+         end do
+      end do
+ 
+      ! [LIGHT COMP] LAI limit per layer: prevents total extinction during spin-up.
+      ! During spin-up, all PLS have low heights and concentrate in the 
+      ! bottom layers, causing impossible aggregate LAI (e.g., 30-300 m2/m2).
+      ! The 10.0 limit is conservative: it exceeds the maximum equilibrium 
+      ! canopy LAI (~8.75 m2/m2 in the non-competition version); 
+      ! OBS: only limiting spin-up.
+
+      do n_pre = 1, nl_shared
+         if (lai_layer(n_pre) .gt. 10.0D0) lai_layer(n_pre) = 10.0D0
+      end do
+
+      ! Step 2: Top-down light propagation through the full canopy
+      ! [LIGHT COMP] Beer-Lambert extinction logic:
+      ! Calculates incident light (linc_layer) for each layer starting from 
+      ! the top (total_ipar) down to the ground. Each layer's incident light 
+      ! is the light remaining after extinction by all layers above it.
+
+      if (light_comp .eq. 1) then
+         ! LIGHT COMPETITION > ON < (Beer-Lambert + Gap Dynamics)
+         do n_pre = nl_shared, 1, -1
+            if (n_pre .eq. nl_shared) then
+               linc_layer(n_pre) = real(ipar, r_8)
+            else
+               linc_layer(n_pre) = lavai_layer(n_pre + 1)
+            end if
+            ! ADIÇÃO DE GAP_FRACTION DE 15%
+            lused_pre = linc_layer(n_pre) * (1.0D0 - gap_fraction) * (1.0D0 - dexp(-0.5D0 * lai_layer(n_pre)))
+            lavai_layer(n_pre)  = linc_layer(n_pre) - lused_pre
+         end do
+      else
+         ! LIGHT COMPETITION > OFF < (only Spin-up): all layers receive full IPAR
+         do n_pre = 1, nl_shared
+            linc_layer(n_pre) = real(ipar, r_8)
+            lavai_layer(n_pre) = real(ipar, r_8)
+         end do
+      end if
+      
+      ! Passo 2: propaga luz de cima para baixo pelo dossel completo (Lambert-Beer)
+      !do n_pre = nl_shared, 1, -1
+      !   if (n_pre .eq. nl_shared) then
+      !      linc_layer(n_pre) = real(ipar, r_8)
+      !   else
+      !      linc_layer(n_pre) = lavai_layer(n_pre + 1)
+      !   end if
+      !   lused_pre           = linc_layer(n_pre) * (1.0D0 - dexp(-0.5D0 * lai_layer(n_pre)))
+      !   lavai_layer(n_pre)  = linc_layer(n_pre) - lused_pre
+      !end do
+
+      ! ====================================================================
+      ! [LIGHT COMP] END
+      ! ====================================================================
+
       !     Productivity & Growth (ph, ALLOCATION, aresp, vpd, rc2 & etc.) for each PLS
       !     =====================
       ! FAZER NUmthreads função de nlen pra otimizar a criação de trheads
@@ -332,14 +458,13 @@ contains
          crown_int(p) = crown_aux(ri)
          ! fpc_grid_int(p) = fpc_grid1(ri)
 
-
-         call prod(dt1,catm, temp, soil_temp, p0, w, ipar, sla_aux(p),rh, emax&
+         call prod(dt1,catm, temp, soil_temp, p0, w, ipar,rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
-               &, height_aux(ri), max_height, soil_sat, ph(p), ar(p), nppa(p), laia(p), f5(p), vpd(p), rm(p), rg(p), rc2(p)&
-               &, wue(p), c_def(p), vcmax(p), tra(p))
+               &, height_aux(ri), linc_layer, nl_shared, lsize_shared&
+               &, soil_sat, ph(p), ar(p), nppa(p), laia(p), f5(p), vpd(p), rm(p), rg(p), rc2(p)&
+               &, wue(p), c_def(p), vcmax(p),specific_la(p),tra(p))
 
          evap(p) = penman(p0,temp,rh,available_energy(temp),rc2(p)) !Actual evapotranspiration (evap, mm/day)
-         
 
          ! Check if the carbon deficit can be compensated by stored carbon
          carbon_in_storage = sto_budg(1, ri)
@@ -372,11 +497,10 @@ contains
             &, cf2(p),litter_l(p),cwd(p), litter_fr(p),nupt(:,p),pupt(:,p)&
             &, lit_nut_content(:,p), limitation_status(:,p), npp2pay(p), uptk_strat(:, p), ar_aux)
 
-
          !       CO2 absortion (ES flow indicators (Burkhard et al., 2014))
          !      =============================================================
 
-         call se_module(cl2(p), ca2(p), cf2(p), awood_aux(p), csoil, co2_abs_se(p))
+         ! call se_module(cl2(p), ca2(p), cf2(p), awood_aux(p), csoil, co2_abs_se(p))
 
          
          ! if (awood_aux(p) .eq. 0.0D0) then
@@ -635,8 +759,13 @@ contains
       deallocate(height_int)
       deallocate(crown_int)
       deallocate(co2_abs_se)
+      deallocate(ocp_coeffs)
 
-      
+      ! [LIGHT COMP] Desaloca arrays do dossel compartilhado
+      deallocate(lai_layer)
+      deallocate(linc_layer)
+      deallocate(lavai_layer)
+
    end subroutine daily_budget
 
 end module budget

@@ -59,6 +59,7 @@ module global_par
    integer(i_4),parameter,public :: npls = {s}                  ! Number of Plant Life Strategies-PLSs simulated (Defined at compile time)
    integer(i_4),parameter,public :: ntraits = 19                 ! Number of traits for each PLS
    integer(i_4),parameter,public :: gc_area = 1000
+   integer(i_4),public :: light_comp = 1  ! 1 = ON, 0 = OFF (default ON)
 
 end module global_par
 
@@ -105,7 +106,7 @@ module allometry_par
 
    real(r_8), public, parameter ::       &
          k_allom1 = 250.0     ,&          !allometric constant default
-         k_allom2 = 60.0      ,&          !!(Table 4.1; Seiler et al., 2014)
+         k_allom2 = 200.0      ,&          !Oberpriller et al. (2022) ~ LPJ-GUESS 4.0
          k_allom3 = 0.67      ,&
          klatosa = 8000.0     ,&   
          ltor = 0.77302587552347657 ,&    !ratio between increment in leaf and root
