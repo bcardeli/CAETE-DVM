@@ -106,7 +106,7 @@ module allometry_par
 
    real(r_8), public, parameter ::       &
          k_allom1 = 250.0     ,&          !allometric constant default
-         k_allom2 = 200.0      ,&          !Oberpriller et al. (2022) ~ LPJ-GUESS 4.0
+         k_allom2 = 40.0      ,&          !Oberpriller et al. (2022) ~ LPJ-GUESS 4.0
          k_allom3 = 0.67      ,&
          klatosa = 8000.0     ,&   
          ltor = 0.77302587552347657 ,&    !ratio between increment in leaf and root

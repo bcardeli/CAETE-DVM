@@ -26,8 +26,6 @@ module productivity
 
 contains
 
-  ! [LIGHT COMP] Assinatura atualizada: recebe linc_layer, nl_shared e lsize_shared
-  ! vindos do pre-loop de budget.f90, onde o dossel compartilhado foi calculado.
     subroutine prod(dt,catm,temp,ts,p0,w,ipar,rh,emax,cl1_prod,&
         & ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,height1,&
         & linc_layer,nl_shared,lsize_shared,wmax,ph,ar,&
@@ -53,7 +51,6 @@ contains
         real(r_8), intent(in) :: beta_froot, wmax
         !real(r_8), intent(in) :: sla1
         real(r_8), intent(in) :: height1
-        ! [LIGHT COMP] Novos argumentos: dossel compartilhado calculado em budget.f90
         integer(i_4), intent(in) :: nl_shared       ! numero de camadas do dossel
         real(r_8),    intent(in) :: lsize_shared     ! tamanho de cada camada (m)
         real(r_8), dimension(nl_shared), intent(in) :: linc_layer ! luz incidente por camada
@@ -117,14 +114,8 @@ contains
     !     ==============
     ! rate (molCO2/m2/s)
     
-        ! [SLA CALCULADO] Calcula sla ANTES de photosynthesis_rate
-        ! spec_leaf_area(tleaf) deve ser chamada aqui para que sla
-        ! esteja disponivel na chamada de photosynthesis_rate abaixo
         sla = spec_leaf_area(tleaf)
     
-        ! [LIGHT COMP] Repassa linc_layer, nl_shared e lsize_shared para
-        ! photosynthesis_rate, que usara esses valores em vez de recalcular
-        ! o dossel individualmente para cada PLS.
         call photosynthesis_rate(catm,temp,p0,ipar,sla,c4_int,n2cl,&
             & p2cl,cl1_prod,ca1_prod,height1,&
             & linc_layer,nl_shared,lsize_shared,f1a,vm_out,jl_out)

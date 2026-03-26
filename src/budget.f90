@@ -180,14 +180,15 @@ contains
       real(r_8), dimension(npls) :: delta_biomass
       real(r_8) :: max_height
 
-      ! [LIGHT COMP] Novas variaveis para o pre-loop de competicao por luz.
-      ! O dossel compartilhado e construido UMA VEZ antes do loop paralelo,
-      ! garantindo que todas as PLS competem pelo mesmo perfil de extincao.
+      ! [LIGHT COMP] New variables for the light competition.
+      ! The shared canopy is constructed ONCE before the parallel loop, 
+      ! ensuring all PLS compete within the same extinction profile.
+
       integer(i_4) :: nl_shared      ! numero de camadas do dossel compartilhado
-      integer(i_4) :: n_pre, p_pre   ! contadores do pre-loop
+      integer(i_4) :: n_pre, p_pre   ! contadores
       real(r_8)    :: lsize_shared   ! tamanho de cada camada (m)
-      real(r_8)    :: idx_pre        ! LAI de uma PLS no pre-loop
-      real(r_8)    :: lused_pre      ! luz absorvida por camada no pre-loop
+      real(r_8)    :: idx_pre        ! LAI de uma PLS
+      real(r_8)    :: lused_pre      ! luz absorvida por camada
       real(r_8), allocatable :: lai_layer(:)   ! LAI agregado de todas as PLS por camada
       real(r_8), allocatable :: linc_layer(:)  ! luz incidente em cada camada
       real(r_8), allocatable :: lavai_layer(:) ! luz disponivel saindo de cada camada
