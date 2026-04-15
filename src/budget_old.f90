@@ -180,14 +180,15 @@ contains
       real(r_8), dimension(npls) :: delta_biomass
       real(r_8) :: max_height
 
-      ! [LIGHT COMP] Novas variaveis para o pre-loop de competicao por luz.
-      ! O dossel compartilhado e construido UMA VEZ antes do loop paralelo,
-      ! garantindo que todas as PLS competem pelo mesmo perfil de extincao.
+      ! [LIGHT COMP] New variables for the light competition.
+      ! The shared canopy is constructed ONCE before the parallel loop, 
+      ! ensuring all PLS compete within the same extinction profile.
+
       integer(i_4) :: nl_shared      ! numero de camadas do dossel compartilhado
-      integer(i_4) :: n_pre, p_pre   ! contadores do pre-loop
+      integer(i_4) :: n_pre, p_pre   ! contadores
       real(r_8)    :: lsize_shared   ! tamanho de cada camada (m)
-      real(r_8)    :: idx_pre        ! LAI de uma PLS no pre-loop
-      real(r_8)    :: lused_pre      ! luz absorvida por camada no pre-loop
+      real(r_8)    :: idx_pre        ! LAI de uma PLS
+      real(r_8)    :: lused_pre      ! luz absorvida por camada
       real(r_8), allocatable :: lai_layer(:)   ! LAI agregado de todas as PLS por camada
       real(r_8), allocatable :: linc_layer(:)  ! luz incidente em cada camada
       real(r_8), allocatable :: lavai_layer(:) ! luz disponivel saindo de cada camada
@@ -311,12 +312,13 @@ contains
       soil_temp = ts
 
       ! ====================================================================
-      ! [LIGHT COMP] PRE-LOOP: construcao do dossel compartilhado (sequencial)
-      ! Agrega o LAI de TODAS as PLS vivas em suas camadas e propaga a luz
-      ! de cima para baixo UMA VEZ. O resultado (linc_layer) e passado para
-      ! cada PLS no loop paralelo, garantindo competicao real por luz.
-      ! Referencia logica: Beer-Lambert aplicado ao dossel agregado.
+      ! [LIGHT COMP] PRE-LOOP: Shared canopy construction (sequential)
+      ! Aggregates LAI from ALL living PLS into their respective layers and
+      ! propagates light top-down ONCE. The result (linc_layer) is passed
+      ! to each PLS in the parallel loop, ensuring realistic light competition.
+      ! Logical Reference: Beer-Lambert Law applied to the aggregate canopy.
       ! ====================================================================
+
       nl_shared    = max(1, nint(max_height / 5.0D0))
       lsize_shared = max_height / real(nl_shared, r_8)
 
@@ -332,22 +334,24 @@ contains
       linc_layer(:)  = 0.0D0
       lavai_layer(:) = 0.0D0
  
-      ! Passo 1: acumula LAI de todas as PLS vivas em suas respectivas camadas
-      ! Gramineas (cawood = 0, height = 0) sao excluidas do pre-loop:
-      ! elas recebem ipar total diretamente em photosynthesis_rate e nao
-      ! competem por camadas do dossel. Inclui-las causaria acumulo de LAI
-      ! incorreto na camada 1.
+      ! Step 1: Accumulate LAI from all living PLS into their respective layers.
+      ! Grasses (cawood = 0, height = 0) are excluded from the pre-loop:
+      ! They receive 80% of total IPAR directly in photosynthesis_rate (funcs.f90) and 
+      ! do not compete within the canopy layers. Including them would 
+      ! lead to incorrect LAI accumulation in Layer 1.
+
       do p_pre = 1, nlen
          ri = lp(p_pre)
  
          ! Pula gramineas — sem madeira nao ocupam camadas do dossel
          if (ca1_pft(ri) .le. 0.0D0) cycle
  
-          ! [LIGHT COMP] LAI ponderado pela ocupacao real da PLS na grid.
-         ! leaf_area_index retorna LAI como se a PLS ocupasse 1 m2 inteiro.
-         ! Multiplicar por ocpavg(ri) escala para a fracao real que ela ocupa,
-         ! de modo que o dossel compartilhado reflita a contribuicao proporcional
-         ! de cada PLS (OBS.: PLS dominantes contribuem mais para a extincao de luz).
+         ! [LIGHT COMP] LAI weighted by the actual PLS occupancy within the grid.
+         ! leaf_area_index returns LAI as if the PLS occupied an entire 1 m2.
+         ! Multiplying by ocpavg(ri) scales this to its actual fractional occupancy,
+         ! ensuring the shared canopy reflects each PLS's proportional contribution.
+         ! (OBS: Dominant PLS contribute more to light extinction).
+
          idx_pre = leaf_area_index(cl1_pft(ri), spec_leaf_area(dt(3,ri))) * ocpavg(ri)
          if (idx_pre .lt. 0.0D0) idx_pre = 0.0D0
          ! Aloca o LAI na camada correta
@@ -355,9 +359,8 @@ contains
             if (n_pre .eq. 1) then
                if (lsize_shared * real(n_pre, r_8) .ge. height_aux(ri)) then
                   lai_layer(n_pre) = lai_layer(n_pre) + idx_pre
-                  exit  ! [FIX] Exit após PLS ser alocada na camada correta —
-                        ! sem exit a PLS seria alocada em multiplas camadas
-                  
+                  exit  ! [FIX] Exit após PLS ser alocada na camada correta --
+                        ! sem exit a PLS seria alocada em multiplas camadas  
                end if
             else
                if ((lsize_shared * real(n_pre, r_8) .ge. height_aux(ri)) .and. &
@@ -369,39 +372,44 @@ contains
          end do
       end do
  
-      ! [LIGHT COMP] Teto de LAI por camada — evita extincao total durante spin-up.
-      ! Durante o spin-up todas as PLS tem altura baixa e se concentram nas
-      ! camadas inferiores, causando LAI agregado impossivel (ex: 30-300 m2/m2).
-      ! O teto de 10.0 e conservador: e maior que o LAI total maximo do dossel
-      ! em equilibrio (~8.75 m2/m2 na versão sem competição), portanto nunca
-      ! sera atingido em condicoes normais --- so limita o spin-up.
+      ! [LIGHT COMP] LAI limit per layer: prevents total extinction during spin-up.
+      ! During spin-up, all PLS have low heights and concentrate in the 
+      ! bottom layers, causing impossible aggregate LAI (e.g., 30-300 m2/m2).
+      ! The 10.0 limit is conservative: it exceeds the maximum equilibrium 
+      ! canopy LAI (~8.75 m2/m2 in the non-competition version); 
+      ! OBS: only limiting spin-up.
 
       do n_pre = 1, nl_shared
          if (lai_layer(n_pre) .gt. 10.0D0) lai_layer(n_pre) = 10.0D0
       end do
 
-      ! Passo 2: propaga luz de cima para baixo pelo dossel completo
+      ! Step 2: Top-down light propagation through the full canopy
+      ! [LIGHT COMP] Beer-Lambert extinction logic:
+      ! Calculates incident light (linc_layer) for each layer starting from 
+      ! the top (total_ipar) down to the ground. Each layer's incident light 
+      ! is the light remaining after extinction by all layers above it.
+
       if (light_comp .eq. 1) then
-         ! Competição por luz ATIVA (Beer-Lambert + Gap Dynamics)
+         ! LIGHT COMPETITION > ON < (Beer-Lambert + Gap Dynamics)
          do n_pre = nl_shared, 1, -1
             if (n_pre .eq. nl_shared) then
                linc_layer(n_pre) = real(ipar, r_8)
             else
                linc_layer(n_pre) = lavai_layer(n_pre + 1)
             end if
+            ! ADIÇÃO DE GAP_FRACTION DE 15%
             lused_pre = linc_layer(n_pre) * (1.0D0 - gap_fraction) * (1.0D0 - dexp(-0.5D0 * lai_layer(n_pre)))
             lavai_layer(n_pre)  = linc_layer(n_pre) - lused_pre
          end do
       else
-         ! Competição por luz DESLIGADA(spin-up): todas as camadas recebem ipar completo
+         ! LIGHT COMPETITION > OFF < (only Spin-up): all layers receive full IPAR
          do n_pre = 1, nl_shared
             linc_layer(n_pre) = real(ipar, r_8)
             lavai_layer(n_pre) = real(ipar, r_8)
          end do
       end if
       
- 
-      ! Passo 2: propaga luz de cima para baixo pelo dossel completo (Beer-Lambert)
+      ! Passo 2: propaga luz de cima para baixo pelo dossel completo (Lambert-Beer)
       !do n_pre = nl_shared, 1, -1
       !   if (n_pre .eq. nl_shared) then
       !      linc_layer(n_pre) = real(ipar, r_8)
@@ -413,7 +421,7 @@ contains
       !end do
 
       ! ====================================================================
-      ! [LIGHT COMP] FIM DO PRE-LOOP
+      ! [LIGHT COMP] END
       ! ====================================================================
 
       !     Productivity & Growth (ph, ALLOCATION, aresp, vpd, rc2 & etc.) for each PLS
@@ -451,15 +459,6 @@ contains
          crown_int(p) = crown_aux(ri)
          ! fpc_grid_int(p) = fpc_grid1(ri)
 
-         ! [LIGHT COMP] Passa linc_layer (luz incidente por camada do dossel
-         ! compartilhado) e nl_shared (numero de camadas) para prod/photosynthesis_rate.
-         ! Cada PLS recebe a luz correta para sua camada, calculada com o LAI
-         ! agregado de todas as PLS (pre-loop acima).
-         !
-         ! [SUN/SHADE FIX] max_height removido da chamada: nao e mais argumento de prod
-         ! desde a introducao do esquema de competicao por luz ([LIGHT COMP]), que
-         ! substituiu o uso de max_height pelo dossel compartilhado linc_layer/nl_shared.
-         ! A presenca de max_height aqui causava desalinhamento de argumentos (35 vs 34).
          call prod(dt1,catm, temp, soil_temp, p0, w, ipar,rh, emax&
                &, cl1_pft(ri), ca1_pft(ri), cf1_pft(ri), nleaf(ri), nwood(ri), nroot(ri)&
                &, height_aux(ri), linc_layer, nl_shared, lsize_shared&
@@ -498,7 +497,6 @@ contains
             &, cf1_pft(ri),storage_out_bdgt(:,p),day_storage(:,p),cl2(p),ca2(p)&
             &, cf2(p),litter_l(p),cwd(p), litter_fr(p),nupt(:,p),pupt(:,p)&
             &, lit_nut_content(:,p), limitation_status(:,p), npp2pay(p), uptk_strat(:, p), ar_aux)
-
 
          !       CO2 absortion (ES flow indicators (Burkhard et al., 2014))
          !      =============================================================

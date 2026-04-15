@@ -26,8 +26,6 @@ module productivity
 
 contains
 
-  ! [LIGHT COMP] Assinatura atualizada: recebe linc_layer, nl_shared e lsize_shared
-  ! vindos do pre-loop de budget.f90, onde o dossel compartilhado foi calculado.
     subroutine prod(dt,catm,temp,ts,p0,w,ipar,rh,emax,cl1_prod,&
         & ca1_prod,cf1_prod,beta_leaf,beta_awood,beta_froot,height1,&
         & linc_layer,nl_shared,lsize_shared,wmax,ph,ar,&
@@ -53,7 +51,6 @@ contains
         real(r_8), intent(in) :: beta_froot, wmax
         !real(r_8), intent(in) :: sla1
         real(r_8), intent(in) :: height1
-        ! [LIGHT COMP] Novos argumentos: dossel compartilhado calculado em budget.f90
         integer(i_4), intent(in) :: nl_shared       ! numero de camadas do dossel
         real(r_8),    intent(in) :: lsize_shared     ! tamanho de cada camada (m)
         real(r_8), dimension(nl_shared), intent(in) :: linc_layer ! luz incidente por camada
@@ -91,9 +88,6 @@ contains
 
         real(r_8) :: f1       !Leaf level gross photosynthesis (molCO2/m2/s)
         real(r_8) :: f1a      !auxiliar_f1
-        ! [SUN/SHADE FIX] Sun and shade assimilation rates (before and after water stress)
-        real(r_8) :: f1a_sun, f1a_shade  ! raw rates from photosynthesis_rate
-        real(r_8) :: f1_sun,  f1_shade   ! water-stress-adjusted rates for gross_ph
         real(r_4) :: rc_pot, rc_aux
 
     !getting pls parameters
@@ -120,19 +114,11 @@ contains
     !     ==============
     ! rate (molCO2/m2/s)
     
-        ! [SLA CALCULADO] Calcula sla ANTES de photosynthesis_rate
-        ! spec_leaf_area(tleaf) deve ser chamada aqui para que sla
-        ! esteja disponivel na chamada de photosynthesis_rate abaixo
         sla = spec_leaf_area(tleaf)
     
-        ! [LIGHT COMP] Repassa linc_layer, nl_shared e lsize_shared para
-        ! photosynthesis_rate, que usara esses valores em vez de recalcular
-        ! o dossel individualmente para cada PLS.
-        ! [SUN/SHADE FIX] Also captures f1a_sun and f1a_shade (new outputs).
         call photosynthesis_rate(catm,temp,p0,ipar,sla,c4_int,n2cl,&
             & p2cl,cl1_prod,ca1_prod,height1,&
-            & linc_layer,nl_shared,lsize_shared,f1a,vm_out,jl_out,&
-            & f1a_sun,f1a_shade)
+            & linc_layer,nl_shared,lsize_shared,f1a,vm_out,jl_out)
     
         ! VPD
         !========
@@ -152,16 +138,8 @@ contains
     
         if ((temp.ge.-10.0).and.(temp.le.50.0)) then
         f1 = f1a * f5 ! :water stress factor ! Ancient floating-point underflow spring (from CPTEC-PVM2)
-        ! [SUN/SHADE FIX] Apply the same water-stress factor to sun and shade rates.
-        ! f5 is derived from the canopy-mean f1a, so it applies uniformly to both
-        ! fractions (both are within the same atmospheric/soil water environment).
-        f1_sun   = f1a_sun   * f5
-        f1_shade = f1a_shade * f5
         else
         f1 = 0.0      !Temperature above/below photosynthesis windown
-        ! [SUN/SHADE FIX] Zero both fractions outside the temperature window
-        f1_sun   = 0.0D0
-        f1_shade = 0.0D0
         endif
     
         rc_aux = canopy_resistence(vpd, f1, g1, catm,temp)  ! RCM leaf level -!s m-1
@@ -181,10 +159,7 @@ contains
     !     Canopy gross photosynthesis (kgC/m2/yr)
     !     =======================================x
     
-        ! [SUN/SHADE FIX] Pass f1_sun and f1_shade separately so gross_ph can
-        ! compute A_sun*f4sun + A_shade*f4shade (De Pury & Farquhar 1997, Eq. 24).
-        ! Previously: gross_ph(f1, cl1_prod, sla) used a single rate for both fractions.
-        ph =  gross_ph(f1_sun, f1_shade, cl1_prod, sla)  ! kg m-2 year-1
+        ph =  gross_ph(f1,cl1_prod,sla)       ! kg m-2 year-1
     
     !     Autothrophic respiration
     !     ========================
